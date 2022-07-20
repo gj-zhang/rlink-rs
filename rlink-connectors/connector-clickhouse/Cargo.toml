@@ -26,4 +26,4 @@ anyhow = "1.0.31"
 chrono = "0.4"
 chrono-tz = "0.5"
 
-clickhouse-rs = "1.0.0-alpha.1"
+clickhouse-rs = "0.1.2"
