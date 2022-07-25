@@ -83,16 +83,3 @@ fn header(prop: &HashMap<String, String>) -> HeaderMap {
     }
     headers
 }
-
-// fn header(prop: Properties) -> HeaderMap {
-//     let mut headers = HeaderMap::new();
-//     headers.insert(header::EXPECT, "100-continue".parse().unwrap());
-//     headers.remove(header::CONTENT_LENGTH);
-//     headers.remove(header::TRANSFER_ENCODING);
-//     let prop_map = prop.as_map().clone();
-//     for entry in prop_map {
-//         let e = entry.clone();
-//         headers.insert(e.0, e.1.as_str().parse().unwrap());
-//     }
-//     headers
-// }
