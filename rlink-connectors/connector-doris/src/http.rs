@@ -3,17 +3,19 @@ use std::collections::HashMap;
 use std::ops::Deref;
 use std::str::FromStr;
 use futures::executor::block_on;
-use reqwest::{Body, Client, header};
+use reqwest::header;
+use reqwest::blocking::{Client, Body};
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use serde::de::DeserializeOwned;
 
 use rlink::core::properties::Properties;
 
 use crate::stream_load::{DORIS_HEADER_PASSWORD, DORIS_HEADER_USERNAME};
+use crate::rest::BackendV2;
 
 pub fn get<R>(url: String, prop: Properties) -> anyhow::Result<R>
     where R: DeserializeOwned {
-    let connect_time_out = prop.get_duration("connect_time_out")?;
+    let connect_time_out = prop.get_duration("connect_timeout_ms")?;
     let user = prop.get_string("username")?;
     let password = prop.get_string("password")?;
 
@@ -23,11 +25,9 @@ pub fn get<R>(url: String, prop: Properties) -> anyhow::Result<R>
 
     let res = client.get(url)
         .basic_auth(user, Some(password))
-        .send();
-    let resp = block_on(res)?;
-    let res_json_future = resp.json::<R>();
-    let response = block_on(res_json_future)?;
-    Ok(response)
+        .send()?;
+    let json = res.json::<R>()?;
+    Ok(json)
 }
 
 // pub fn post<T, U>(prop: Properties, url: String, body: &T) -> anyhow::Result<U>
@@ -52,25 +52,23 @@ pub fn get<R>(url: String, prop: Properties) -> anyhow::Result<R>
 // }
 
 pub fn put<T, U>(prop: &Properties, url: &String, body: T) -> anyhow::Result<U>
-    where U: DeserializeOwned, T: Into<Body> {
+    where U: DeserializeOwned, Body: From<T> {
     let client = Client::builder()
-        .connect_timeout(prop.get_duration("connect_time_out")?)
+        .connect_timeout(prop.get_duration("connect_timeout_ms")?)
         .build()?;
-    let user = prop.get_string(DORIS_HEADER_PASSWORD).unwrap();
-    let password = prop.get_string(DORIS_HEADER_USERNAME).unwrap();
+    let user = prop.get_string(DORIS_HEADER_USERNAME).unwrap();
+    let password = prop.get_string(DORIS_HEADER_PASSWORD).unwrap();
     let map = prop.as_map().borrow();
     let headers = header(map);
-    let response_future = client
+    let response = client
         .put(url)
         .basic_auth(user, Some(password))
         .headers(headers)
         .body(body)
-        .send();
-    let response = block_on(response_future)?;
-    let res_json_future = response.json::<U>();
-    let res = block_on(res_json_future)?;
+        .send()?
+        .json::<U>()?;
 
-    Ok(res)
+    Ok(response)
 }
 
 fn header(prop: &HashMap<String, String>) -> HeaderMap {

@@ -1,3 +1,4 @@
+use std::time::Duration;
 use rand::Rng;
 use serde_derive::{Serialize, Deserialize};
 
@@ -10,6 +11,13 @@ const REST_RESPONSE_STATUS_OK: i32 = 200;
 const API_PREFIX: &'static str = "/api";
 const SCHEMA: &'static str = "_schema";
 const BACKEND_V2: &'static str = "/api/backends?is_alive=true";
+
+#[derive(Deserialize, Serialize)]
+pub struct BackendResp {
+    msg: String,
+    code: i32,
+    data: BackendV2,
+}
 
 #[derive(Deserialize, Serialize)]
 pub struct BackendV2 {
@@ -45,8 +53,7 @@ pub fn get_backends_v2(options: &DorisConfigOption) -> anyhow::Result<Vec<Backen
 
     prop.set_str(DORIS_HEADER_USERNAME, options.username.as_str());
     prop.set_str(DORIS_HEADER_PASSWORD, options.password.as_str());
-    prop.set_u64("connect_timeout_ms", options.connect_timeout_ms as u64);
-    let res = http::get::<BackendV2>(be_url, prop)?;
-
-    Ok(res.backends)
+    prop.set_duration("connect_timeout_ms", Duration::from_millis(options.connect_timeout_ms as u64));
+    let res = http::get::<BackendResp>(be_url, prop)?;
+    Ok(res.data.backends)
 }

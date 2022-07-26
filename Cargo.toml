@@ -17,4 +17,5 @@ members = [
     "example/example-connect",
     "example/example-files",
     "example/example-kafka",
+    "example/example-doris"
 ]
