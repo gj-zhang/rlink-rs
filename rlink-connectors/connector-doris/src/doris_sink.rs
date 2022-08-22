@@ -74,18 +74,26 @@ impl OutputFormat for DorisSink {
             map.insert(field.name().to_string(), field_str);
             field_str_names.push(field.name().to_string());
         }
-        map.insert("default_seq".to_string(), current_timestamp_millis().to_string());
-        field_str_names.push("default_seq".to_string());
+        let seq_col = &self.options.sink_default_seq_col;
+        if !seq_col.is_empty() {
+            map.insert(seq_col.to_string(), current_timestamp_millis().to_string());
+            field_str_names.push(seq_col.to_string());
+        }
         values.push(map);
 
         let req = stream_load::LoadRequest::new(
-            values, "replica_test".to_string(), "rlink_test1".to_string(),
-            field_str_names, false, "default_seq".to_string(),
+            values,
+            self.options.database.to_string(),
+            self.options.table.to_string(),
+            field_str_names,
+            false,
+            self.options.sink_default_seq_col.to_string(),
+                    format!("{}_{}_rlink", current_timestamp_millis(), self.task_id.num_tasks())
         );
         let res = stream_load::load(&self.options, req);
         match res {
-            Ok(r) => {},
-            Err(e) => error!("{}", e)
+            Ok(_r) => {},
+            Err(e) => panic!("task id: {:?}, stream load error: {}", self.task_id, e)
         }
     }
 

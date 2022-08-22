@@ -1,26 +1,13 @@
 use std::borrow::BorrowMut;
 use std::collections::HashMap;
 use std::time::Duration;
-use rand::Rng;
 
 use rlink::core::properties::Properties;
-use rlink::utils::date_time::{current_timestamp, current_timestamp_millis, fmt_date_time};
+use rlink::utils::date_time::{current_timestamp_millis, fmt_date_time};
 
+use crate::{DORIS_CONNECT_TIMEOUT_MS, DORIS_HEADER_COLUMN_SEPARATOR, DORIS_HEADER_COLUMNS, DORIS_HEADER_DELETE_SIGN, DORIS_HEADER_FORMAT, DORIS_HEADER_FORMAT_JSON, DORIS_HEADER_LINE_DELIMITER, DORIS_HEADER_PASSWORD, DORIS_HEADER_SEQ_COL, DORIS_HEADER_STRIP_OUTER_ARRAY, DORIS_HEADER_USERNAME, DORIS_LABEL_PREFIX};
 use crate::http;
 use crate::rest::random_backend;
-
-// const LOAD_URL_PATTERN: &'static str = "http://{}/api/{}/{}/_stream_load?";
-const DORIS_HEADER_DELETE_SIGN: &'static str = "__DORIS_DELETE_SIGN__";
-const DORIS_HEADER_SEQ_COL: &'static str = "function_column.sequence_col";
-const DORIS_HEADER_COLUMNS: &'static str = "columns";
-const DORIS_HEADER_FORMAT_JSON: &'static str = "json";
-const DORIS_HEADER_FORMAT_CSV: &'static str = "csv";
-const DORIS_HEADER_FORMAT: &'static str = "format";
-const DORIS_HEADER_STRIP_OUTER_ARRAY: &'static str = "strip_outer_array";
-const DORIS_HEADER_COLUMN_SEPARATOR: &'static str = "column_separator";
-const DORIS_HEADER_LINE_DELIMITER: &'static str = "line_delimiter";
-pub const DORIS_HEADER_USERNAME: &'static str = "username";
-pub const DORIS_HEADER_PASSWORD: &'static str = "password";
 
 #[derive(Debug)]
 pub enum SinkFormat {
@@ -41,28 +28,138 @@ pub struct DorisConfigOption {
     pub(crate) sink_line_separator: String,
     pub(crate) sink_format: SinkFormat,
     pub(crate) sink_strip_outer_array: String,
+    pub(crate) sink_default_seq_col: String,
+    pub(crate) database: String,
+    pub(crate) table: String,
 }
 
-impl DorisConfigOption {
-    pub fn new(fe_nodes: String, username: String, password: String,
-               connect_timeout_ms: u32, read_timeout_ms: u32, sink_batch_size: u32,
-               sink_max_retries: u32, sink_column_separator: String, sink_line_separator: String,
-               sink_format: SinkFormat, sink_strip_outer_array: String) -> DorisConfigOption {
+pub struct DorisConfigOptionBuilder {
+    pub(crate) fe_nodes: String,
+    pub(crate) username: String,
+    pub(crate) password: String,
+    pub(crate) connect_timeout_ms: u32,
+    pub(crate) read_timeout_ms: u32,
+    pub(crate) sink_batch_size: u32,
+    pub(crate) sink_max_retries: u32,
+    pub(crate) sink_column_separator: String,
+    pub(crate) sink_line_separator: String,
+    pub(crate) sink_format: SinkFormat,
+    pub(crate) sink_strip_outer_array: String,
+    pub(crate) sink_default_seq_col: String,
+    pub(crate) database: String,
+    pub(crate) table: String,
+}
+
+impl DorisConfigOptionBuilder {
+    pub fn new() -> Self {
+        DorisConfigOptionBuilder {
+            fe_nodes: "".to_string(),
+            username: "".to_string(),
+            password: "".to_string(),
+            connect_timeout_ms: 0,
+            read_timeout_ms: 0,
+            sink_batch_size: 0,
+            sink_max_retries: 0,
+            sink_column_separator: ",".to_string(),
+            sink_line_separator: "\r\n".to_string(),
+            sink_format: SinkFormat::JSON,
+            sink_strip_outer_array: "true".to_string(),
+            sink_default_seq_col: "".to_string(),
+            database: "".to_string(),
+            table: "".to_string(),
+        }
+    }
+
+    pub fn with_fe_nodes(&mut self, fe_nodes: String) -> &mut Self {
+        self.fe_nodes = fe_nodes;
+        self
+    }
+
+    pub fn with_username(&mut self, username: String) -> &mut Self {
+        self.username = username;
+        self
+    }
+
+    pub fn with_password(&mut self, password: String) -> &mut Self {
+        self.password = password;
+        self
+    }
+
+    pub fn with_connect_timeout_ms(&mut self, connect_time_ms: u32) -> &mut Self {
+        self.connect_timeout_ms = connect_time_ms;
+        self
+    }
+
+    pub fn with_read_timeout_ms(&mut self, read_timeout_ms: u32) -> &mut Self {
+        self.read_timeout_ms = read_timeout_ms;
+        self
+    }
+
+    pub fn with_sink_batch_size(&mut self, sink_batch_size: u32) -> &mut Self {
+        self.sink_batch_size = sink_batch_size;
+        self
+    }
+
+    pub fn with_sink_max_retries(&mut self, sink_max_retries: u32) -> &mut Self {
+        self.sink_max_retries = sink_max_retries;
+        self
+    }
+
+    pub fn with_sink_column_separator(&mut self, sink_column_separator: String) -> &mut Self {
+        self.sink_column_separator = sink_column_separator;
+        self
+    }
+
+    pub fn with_sink_line_separator(&mut self, sink_line_separator: String) -> &mut Self {
+        self.sink_line_separator = sink_line_separator;
+        self
+    }
+
+    pub fn with_sink_format(&mut self, sink_format: SinkFormat) -> &mut Self {
+        self.sink_format = sink_format;
+        self
+    }
+
+    pub fn with_sink_strip_outer_array(&mut self, sink_strip_outer_array: String) -> &mut Self {
+        self.sink_strip_outer_array = sink_strip_outer_array;
+        self
+    }
+
+    pub fn with_sink_default_seq_col(&mut self, sink_default_seq_col: String) -> &mut Self {
+        self.sink_default_seq_col = sink_default_seq_col;
+        self
+    }
+
+    pub fn with_database(&mut self, database: String) -> &mut Self {
+        self.database = database;
+        self
+    }
+
+    pub fn with_table(&mut self, table: String) -> &mut Self {
+        self.table = table;
+        self
+    }
+
+    pub fn build(self) -> DorisConfigOption {
         DorisConfigOption {
-            fe_nodes,
-            username,
-            password,
-            connect_timeout_ms,
-            read_timeout_ms,
-            sink_batch_size,
-            sink_max_retries,
-            sink_column_separator,
-            sink_line_separator,
-            sink_format,
-            sink_strip_outer_array,
+            fe_nodes: self.fe_nodes,
+            username: self.username,
+            password: self.password,
+            connect_timeout_ms: self.connect_timeout_ms,
+            read_timeout_ms: self.read_timeout_ms,
+            sink_batch_size: self.sink_batch_size,
+            sink_max_retries: self.sink_max_retries,
+            sink_column_separator: self.sink_column_separator,
+            sink_line_separator: self.sink_line_separator,
+            sink_format: self.sink_format,
+            sink_strip_outer_array: self.sink_strip_outer_array,
+            sink_default_seq_col: self.sink_default_seq_col,
+            database: self.database,
+            table: self.table,
         }
     }
 }
+
 
 enum LoadStatus {
     Success,
@@ -77,11 +174,12 @@ pub struct LoadRequest {
     columns: Vec<String>,
     delete: bool,
     seq_col: String,
+    label_prefix: String,
 }
 
 impl LoadRequest {
     pub fn new(value: Vec<HashMap<String, String>>, database: String, table: String,
-               columns: Vec<String>, delete: bool, seq_col: String) -> LoadRequest {
+               columns: Vec<String>, delete: bool, seq_col: String, label_prefix: String) -> LoadRequest {
         LoadRequest {
             value,
             database,
@@ -89,6 +187,7 @@ impl LoadRequest {
             columns,
             delete,
             seq_col,
+            label_prefix,
         }
     }
 }
@@ -202,7 +301,19 @@ pub fn load(options: &DorisConfigOption, load_request: LoadRequest) -> anyhow::R
 
     prop.set_str(DORIS_HEADER_USERNAME, options.username.as_str());
     prop.set_str(DORIS_HEADER_PASSWORD, options.password.as_str());
-    prop.set_duration("connect_timeout_ms", Duration::from_millis(options.connect_timeout_ms as u64));
+    prop.set_duration(DORIS_CONNECT_TIMEOUT_MS, Duration::from_millis(options.connect_timeout_ms as u64));
+    prop.set_str(DORIS_LABEL_PREFIX, load_request.label_prefix.as_str());
+    // let labels = prop.get_string(DORIS_LABEL_PREFIX);
+    // let label = match labels {
+    //     Ok(l) => l,
+    //     Err(_e) => {
+    //         let mut t = current_timestamp_millis().to_string();
+    //         t.push_str("_rlink");
+    //         t
+    //     }
+    // };
+    // prop.set_str(DORIS_LABEL_PREFIX, label.as_str());
+
 
     let start = current_timestamp_millis();
     let backend = random_backend(options);
@@ -237,17 +348,7 @@ pub fn load(options: &DorisConfigOption, load_request: LoadRequest) -> anyhow::R
     return Ok("Success".to_string());
 }
 
-pub fn load_batch(value: &String, prop: &mut Properties, url: &String) -> anyhow::Result<RespContent> {
-    let labels = prop.get_string("label");
-    let label = match labels {
-        Ok(l) => l,
-        Err(_e) => {
-            let mut t = current_timestamp_millis().to_string();
-            t.push_str("_rlink");
-            t
-        }
-    };
-    prop.set_str("label", label.as_str());
+pub fn load_batch(value: &String, prop: &Properties, url: &String) -> anyhow::Result<RespContent> {
     let put_res = http::put::<String, RespContent>(prop, url, value.to_string())?;
     if put_res.Status == "Success".to_string() {
         Ok(put_res)

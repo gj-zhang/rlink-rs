@@ -1,11 +1,12 @@
 use std::time::Duration;
+
 use rand::Rng;
-use serde_derive::{Serialize, Deserialize};
 
 use rlink::core::properties::Properties;
 
-use crate::http;
-use crate::stream_load::{DORIS_HEADER_PASSWORD, DORIS_HEADER_USERNAME, DorisConfigOption};
+use crate::{DORIS_CONNECT_TIMEOUT_MS, http};
+use crate::{DORIS_HEADER_PASSWORD, DORIS_HEADER_USERNAME};
+use crate::stream_load::DorisConfigOption;
 
 const REST_RESPONSE_STATUS_OK: i32 = 200;
 const API_PREFIX: &'static str = "/api";
@@ -53,7 +54,7 @@ pub fn get_backends_v2(options: &DorisConfigOption) -> anyhow::Result<Vec<Backen
 
     prop.set_str(DORIS_HEADER_USERNAME, options.username.as_str());
     prop.set_str(DORIS_HEADER_PASSWORD, options.password.as_str());
-    prop.set_duration("connect_timeout_ms", Duration::from_millis(options.connect_timeout_ms as u64));
+    prop.set_duration(DORIS_CONNECT_TIMEOUT_MS, Duration::from_millis(options.connect_timeout_ms as u64));
     let res = http::get::<BackendResp>(be_url, prop)?;
     Ok(res.data.backends)
 }
