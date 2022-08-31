@@ -1,21 +1,22 @@
 use std::borrow::BorrowMut;
 use std::collections::HashMap;
 use std::time::Duration;
+use reqwest::Client;
 
 use rlink::core::properties::Properties;
 use rlink::utils::date_time::{current_timestamp_millis, fmt_date_time};
 
 use crate::{DORIS_CONNECT_TIMEOUT_MS, DORIS_HEADER_COLUMN_SEPARATOR, DORIS_HEADER_COLUMNS, DORIS_HEADER_DELETE_SIGN, DORIS_HEADER_FORMAT, DORIS_HEADER_FORMAT_JSON, DORIS_HEADER_LINE_DELIMITER, DORIS_HEADER_PASSWORD, DORIS_HEADER_SEQ_COL, DORIS_HEADER_STRIP_OUTER_ARRAY, DORIS_HEADER_USERNAME, DORIS_LABEL_PREFIX};
 use crate::http;
-use crate::rest::random_backend;
+use crate::backend::random_backend;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum SinkFormat {
     JSON,
     CSV,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DorisConfigOption {
     pub(crate) fe_nodes: String,
     pub(crate) username: String,
@@ -23,6 +24,7 @@ pub struct DorisConfigOption {
     pub(crate) connect_timeout_ms: u32,
     pub(crate) read_timeout_ms: u32,
     pub(crate) sink_batch_size: u32,
+    pub(crate) sink_interval: Duration,
     pub(crate) sink_max_retries: u32,
     pub(crate) sink_column_separator: String,
     pub(crate) sink_line_separator: String,
@@ -40,6 +42,7 @@ pub struct DorisConfigOptionBuilder {
     pub(crate) connect_timeout_ms: u32,
     pub(crate) read_timeout_ms: u32,
     pub(crate) sink_batch_size: u32,
+    pub(crate) sink_interval: Duration,
     pub(crate) sink_max_retries: u32,
     pub(crate) sink_column_separator: String,
     pub(crate) sink_line_separator: String,
@@ -59,6 +62,7 @@ impl DorisConfigOptionBuilder {
             connect_timeout_ms: 0,
             read_timeout_ms: 0,
             sink_batch_size: 0,
+            sink_interval: Duration::from_secs(5),
             sink_max_retries: 0,
             sink_column_separator: ",".to_string(),
             sink_line_separator: "\r\n".to_string(),
@@ -97,6 +101,11 @@ impl DorisConfigOptionBuilder {
 
     pub fn with_sink_batch_size(&mut self, sink_batch_size: u32) -> &mut Self {
         self.sink_batch_size = sink_batch_size;
+        self
+    }
+
+    pub fn with_sink_interval(&mut self, sink_interval: Duration) -> &mut Self {
+        self.sink_interval = sink_interval;
         self
     }
 
@@ -148,6 +157,7 @@ impl DorisConfigOptionBuilder {
             connect_timeout_ms: self.connect_timeout_ms,
             read_timeout_ms: self.read_timeout_ms,
             sink_batch_size: self.sink_batch_size,
+            sink_interval: self.sink_interval,
             sink_max_retries: self.sink_max_retries,
             sink_column_separator: self.sink_column_separator,
             sink_line_separator: self.sink_line_separator,
@@ -262,7 +272,7 @@ impl RespContent {
     }
 }
 
-pub fn load(options: &DorisConfigOption, load_request: LoadRequest) -> anyhow::Result<String> {
+pub async fn load(options: &DorisConfigOption, load_request: LoadRequest, client: &Client) -> anyhow::Result<String> {
     if load_request.value.is_empty() {
         return Ok("Success".to_string());
     }
@@ -303,25 +313,14 @@ pub fn load(options: &DorisConfigOption, load_request: LoadRequest) -> anyhow::R
     prop.set_str(DORIS_HEADER_PASSWORD, options.password.as_str());
     prop.set_duration(DORIS_CONNECT_TIMEOUT_MS, Duration::from_millis(options.connect_timeout_ms as u64));
     prop.set_str(DORIS_LABEL_PREFIX, load_request.label_prefix.as_str());
-    // let labels = prop.get_string(DORIS_LABEL_PREFIX);
-    // let label = match labels {
-    //     Ok(l) => l,
-    //     Err(_e) => {
-    //         let mut t = current_timestamp_millis().to_string();
-    //         t.push_str("_rlink");
-    //         t
-    //     }
-    // };
-    // prop.set_str(DORIS_LABEL_PREFIX, label.as_str());
-
 
     let start = current_timestamp_millis();
-    let backend = random_backend(options);
+    let backend = random_backend(options, &client).await;
     info!("random backend time: {}", current_timestamp_millis() - start);
     let url = format!("http://{}/api/{}/{}/_stream_load?", backend, load_request.database, load_request.table);
     let mut err = None;
     for i in 0..options.sink_max_retries {
-        let res = load_batch(&value, prop, &url);
+        let res = load_batch(&value, prop, &url, &client).await;
         match res {
             Ok(r) => {
                 if r.Status != "Success".to_string() {
@@ -348,8 +347,8 @@ pub fn load(options: &DorisConfigOption, load_request: LoadRequest) -> anyhow::R
     return Ok("Success".to_string());
 }
 
-pub fn load_batch(value: &String, prop: &Properties, url: &String) -> anyhow::Result<RespContent> {
-    let put_res = http::put::<String, RespContent>(prop, url, value.to_string())?;
+pub async fn load_batch(value: &String, prop: &Properties, url: &String, client: &Client) -> anyhow::Result<RespContent> {
+    let put_res = http::put::<String, RespContent>(prop, url, value.to_string(), client).await?;
     if put_res.Status == "Success".to_string() {
         Ok(put_res)
     } else {

@@ -2,7 +2,7 @@ use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::str::FromStr;
 
-use reqwest::blocking::{Body, Client};
+use reqwest::{Body, Client};
 use reqwest::header;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use serde::de::DeserializeOwned;
@@ -11,28 +11,19 @@ use rlink::core::properties::Properties;
 
 use crate::{DORIS_CONNECT_TIMEOUT_MS, DORIS_HEADER_PASSWORD, DORIS_HEADER_USERNAME};
 
-pub fn get<R>(url: String, prop: Properties) -> anyhow::Result<R>
+pub async fn get<R>(url: String, prop: Properties, client: &Client) -> anyhow::Result<R>
     where R: DeserializeOwned {
-    let connect_time_out = prop.get_duration(DORIS_CONNECT_TIMEOUT_MS)?;
     let user = prop.get_string(DORIS_HEADER_USERNAME)?;
     let password = prop.get_string(DORIS_HEADER_PASSWORD)?;
-
-    let client = Client::builder()
-        .connect_timeout(connect_time_out)
-        .build().expect("http client build error");
-
     let res = client.get(url)
         .basic_auth(user, Some(password))
-        .send()?;
-    let json = res.json::<R>()?;
+        .send().await?;
+    let json = res.json::<R>().await?;
     Ok(json)
 }
 
-pub fn put<T, U>(prop: &Properties, url: &String, body: T) -> anyhow::Result<U>
+pub async fn put<T, U>(prop: &Properties, url: &String, body: T, client: &Client) -> anyhow::Result<U>
     where U: DeserializeOwned, Body: From<T> {
-    let client = Client::builder()
-        .connect_timeout(prop.get_duration(DORIS_CONNECT_TIMEOUT_MS)?)
-        .build()?;
     let user = prop.get_string(DORIS_HEADER_USERNAME).unwrap();
     let password = prop.get_string(DORIS_HEADER_PASSWORD).unwrap();
     let map = prop.as_map().borrow();
@@ -42,8 +33,8 @@ pub fn put<T, U>(prop: &Properties, url: &String, body: T) -> anyhow::Result<U>
         .basic_auth(user, Some(password))
         .headers(headers)
         .body(body)
-        .send()?
-        .json::<U>()?;
+        .send().await?
+        .json::<U>().await?;
 
     Ok(response)
 }

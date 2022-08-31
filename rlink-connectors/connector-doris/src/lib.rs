@@ -7,7 +7,7 @@ extern crate serde;
 
 pub mod doris_sink;
 pub mod stream_load;
-pub mod rest;
+pub mod backend;
 pub mod http;
 
 /// connect properties

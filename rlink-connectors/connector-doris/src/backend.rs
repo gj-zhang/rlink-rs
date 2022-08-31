@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use rand::Rng;
+use reqwest::Client;
 
 use rlink::core::properties::Properties;
 
@@ -40,13 +41,13 @@ pub fn random_endpoint(fe_nodes: &String) -> anyhow::Result<String> {
     Ok(n.to_string())
 }
 
-pub fn random_backend(options: &DorisConfigOption) -> String {
-    let backends = get_backends_v2(options).unwrap();
+pub async fn random_backend(options: &DorisConfigOption, client: &Client) -> String {
+    let backends = get_backends_v2(options, client).await.unwrap();
     let be = backends.get(0).ok_or("the backends choose error").unwrap();
     format!("{}:{}", be.ip, be.http_port)
 }
 
-pub fn get_backends_v2(options: &DorisConfigOption) -> anyhow::Result<Vec<BackendRowV2>> {
+pub async fn get_backends_v2(options: &DorisConfigOption, client: &Client) -> anyhow::Result<Vec<BackendRowV2>> {
     let fe = &options.fe_nodes;
     let fe = random_endpoint(fe)?;
     let be_url = format!("http://{}{}", fe, BACKEND_V2);
@@ -55,6 +56,6 @@ pub fn get_backends_v2(options: &DorisConfigOption) -> anyhow::Result<Vec<Backen
     prop.set_str(DORIS_HEADER_USERNAME, options.username.as_str());
     prop.set_str(DORIS_HEADER_PASSWORD, options.password.as_str());
     prop.set_duration(DORIS_CONNECT_TIMEOUT_MS, Duration::from_millis(options.connect_timeout_ms as u64));
-    let res = http::get::<BackendResp>(be_url, prop)?;
+    let res = http::get::<BackendResp>(be_url, prop, client).await?;
     Ok(res.data.backends)
 }
