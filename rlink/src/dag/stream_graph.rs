@@ -383,6 +383,7 @@ impl RawStreamGraph {
             },
             OperatorType::KeyBy => match operator_type {
                 OperatorType::Source => Err(DagError::SourceNotAtStarting),
+                OperatorType::CoProcess => Ok(true),
                 _ => Ok(false),
             },
             OperatorType::WindowAssigner => match operator_type {

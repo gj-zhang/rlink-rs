@@ -9,9 +9,6 @@ use crate::{DORIS_CONNECT_TIMEOUT_MS, http};
 use crate::{DORIS_HEADER_PASSWORD, DORIS_HEADER_USERNAME};
 use crate::stream_load::DorisConfigOption;
 
-const REST_RESPONSE_STATUS_OK: i32 = 200;
-const API_PREFIX: &'static str = "/api";
-const SCHEMA: &'static str = "_schema";
 const BACKEND_V2: &'static str = "/api/backends?is_alive=true";
 
 #[derive(Deserialize, Serialize)]

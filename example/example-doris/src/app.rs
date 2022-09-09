@@ -52,7 +52,6 @@ impl StreamApp for DorisApp {
             .with_username(username)
             .with_password(password)
             .with_connect_timeout_ms(10_000)
-            .with_read_timeout_ms(10_000)
             .with_sink_batch_size(10)
             .with_sink_max_retries(3)
             .with_sink_format(SinkFormat::JSON)

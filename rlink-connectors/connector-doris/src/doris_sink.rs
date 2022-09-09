@@ -21,7 +21,6 @@ pub struct DorisSink {
     task_id: TaskId,
     schema: Schema,
     header: String,
-    laster_timestamp: u64,
     handover: Option<Handover>,
 }
 
@@ -32,7 +31,6 @@ impl DorisSink {
             task_id: TaskId::default(),
             schema: Schema::empty(),
             header: "".to_string(),
-            laster_timestamp: 0,
             handover: None,
         }
     }
@@ -75,7 +73,7 @@ impl OutputFormat for DorisSink {
         Ok(())
     }
 
-    fn write_record(&mut self, mut record: Record) {
+    fn write_record(&mut self, record: Record) {
         self.handover.as_ref().unwrap().produce(record).unwrap();
     }
 

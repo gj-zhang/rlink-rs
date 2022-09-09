@@ -196,6 +196,29 @@ impl KeyedStream {
     pub(crate) fn new(keyed_stream: StreamBuilder) -> Self {
         KeyedStream { keyed_stream }
     }
+
+    pub fn connect<F>(self, data_streams: Vec<CoStream>, co_process: F) -> ConnectedStreams
+        where
+            F: CoProcessFunction + 'static,
+    {
+        let pipeline_stream_manager = self.keyed_stream.stream_manager.clone();
+        // Ensure `this` is placed in the last position!!!
+        // index trigger `process_left` at the last location, otherwise trigger `process_right`
+        let mut parent_streams: Vec<StreamBuilder> =
+            data_streams.into_iter().map(|x| x.into()).collect();
+        parent_streams.push(self.keyed_stream);
+
+        let parent_ids: Vec<OperatorId> =
+            parent_streams.iter().map(|x| x.cur_operator_id).collect();
+
+        let co_stream = StreamBuilder::with_connect(
+            pipeline_stream_manager,
+            Box::new(co_process),
+            parent_ids.clone(),
+        );
+
+        ConnectedStreams::new(co_stream, parent_ids)
+    }
 }
 
 impl TKeyedStream for KeyedStream {

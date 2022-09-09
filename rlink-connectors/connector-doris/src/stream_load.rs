@@ -22,9 +22,7 @@ pub struct DorisConfigOption {
     pub(crate) username: String,
     pub(crate) password: String,
     pub(crate) connect_timeout_ms: u32,
-    pub(crate) read_timeout_ms: u32,
     pub(crate) sink_batch_size: u32,
-    pub(crate) sink_interval: Duration,
     pub(crate) sink_max_retries: u32,
     pub(crate) sink_column_separator: String,
     pub(crate) sink_line_separator: String,
@@ -40,9 +38,7 @@ pub struct DorisConfigOptionBuilder {
     pub(crate) username: String,
     pub(crate) password: String,
     pub(crate) connect_timeout_ms: u32,
-    pub(crate) read_timeout_ms: u32,
     pub(crate) sink_batch_size: u32,
-    pub(crate) sink_interval: Duration,
     pub(crate) sink_max_retries: u32,
     pub(crate) sink_column_separator: String,
     pub(crate) sink_line_separator: String,
@@ -60,9 +56,7 @@ impl DorisConfigOptionBuilder {
             username: "".to_string(),
             password: "".to_string(),
             connect_timeout_ms: 0,
-            read_timeout_ms: 0,
             sink_batch_size: 0,
-            sink_interval: Duration::from_secs(5),
             sink_max_retries: 0,
             sink_column_separator: ",".to_string(),
             sink_line_separator: "\r\n".to_string(),
@@ -94,18 +88,8 @@ impl DorisConfigOptionBuilder {
         self
     }
 
-    pub fn with_read_timeout_ms(&mut self, read_timeout_ms: u32) -> &mut Self {
-        self.read_timeout_ms = read_timeout_ms;
-        self
-    }
-
     pub fn with_sink_batch_size(&mut self, sink_batch_size: u32) -> &mut Self {
         self.sink_batch_size = sink_batch_size;
-        self
-    }
-
-    pub fn with_sink_interval(&mut self, sink_interval: Duration) -> &mut Self {
-        self.sink_interval = sink_interval;
         self
     }
 
@@ -155,9 +139,7 @@ impl DorisConfigOptionBuilder {
             username: self.username,
             password: self.password,
             connect_timeout_ms: self.connect_timeout_ms,
-            read_timeout_ms: self.read_timeout_ms,
             sink_batch_size: self.sink_batch_size,
-            sink_interval: self.sink_interval,
             sink_max_retries: self.sink_max_retries,
             sink_column_separator: self.sink_column_separator,
             sink_line_separator: self.sink_line_separator,
@@ -170,11 +152,6 @@ impl DorisConfigOptionBuilder {
     }
 }
 
-
-enum LoadStatus {
-    Success,
-    PublishTimeout,
-}
 
 #[derive(Debug)]
 pub struct LoadRequest {

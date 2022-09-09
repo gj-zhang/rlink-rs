@@ -15,8 +15,10 @@ pub async fn get<R>(url: String, prop: Properties, client: &Client) -> anyhow::R
     where R: DeserializeOwned {
     let user = prop.get_string(DORIS_HEADER_USERNAME)?;
     let password = prop.get_string(DORIS_HEADER_PASSWORD)?;
+    let timeout = prop.get_duration(DORIS_CONNECT_TIMEOUT_MS)?;
     let res = client.get(url)
         .basic_auth(user, Some(password))
+        .timeout(timeout)
         .send().await?;
     let json = res.json::<R>().await?;
     Ok(json)
@@ -26,6 +28,7 @@ pub async fn put<T, U>(prop: &Properties, url: &String, body: T, client: &Client
     where U: DeserializeOwned, Body: From<T> {
     let user = prop.get_string(DORIS_HEADER_USERNAME).unwrap();
     let password = prop.get_string(DORIS_HEADER_PASSWORD).unwrap();
+    let timeout = prop.get_duration(DORIS_CONNECT_TIMEOUT_MS)?;
     let map = prop.as_map().borrow();
     let headers = header(map);
     let response = client
@@ -33,6 +36,7 @@ pub async fn put<T, U>(prop: &Properties, url: &String, body: T, client: &Client
         .basic_auth(user, Some(password))
         .headers(headers)
         .body(body)
+        .timeout(timeout)
         .send().await?
         .json::<U>().await?;
 
