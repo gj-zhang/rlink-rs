@@ -1,6 +1,7 @@
 use futures::StreamExt;
 use rdkafka::consumer::{Consumer, DefaultConsumerContext, StreamConsumer};
 use rdkafka::{ClientConfig, Message, Offset, TopicPartitionList};
+use rdkafka::message::FromBytes;
 use rlink::channel::utils::handover::Handover;
 use rlink::core::runtime::JobId;
 use rlink::utils;
@@ -126,6 +127,8 @@ impl KafkaConsumerThread {
                     let timestamp = borrowed_message.timestamp().to_millis().unwrap_or(0);
                     let key = borrowed_message.key().unwrap_or(&utils::EMPTY_SLICE);
                     let payload = borrowed_message.payload().unwrap_or(&utils::EMPTY_SLICE);
+                    let s = str::from_bytes(payload).unwrap();
+                    info!("message: {}", s);
 
                     if self.end_check(topic, partition, offset) {
                         self.handover
@@ -140,7 +143,7 @@ impl KafkaConsumerThread {
 
                     let records = self
                         .deserializer
-                        .deserialize(timestamp, key, payload, topic, partition, offset);
+                        .deserialize(timestamp, key, payload_clone, topic, partition, offset);
 
                     for record in records {
                         self.handover

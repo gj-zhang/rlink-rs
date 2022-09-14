@@ -59,6 +59,11 @@ pub trait TKeyedStream {
     fn window<W>(self, window_assigner: W) -> WindowedStream
     where
         W: WindowAssigner + 'static;
+
+    fn flat_map<F>(self, flat_map: F) -> DataStream
+    where
+        F: FlatMapFunction + 'static;
+
     fn add_sink<O>(self, output_format: O) -> SinkStream
     where
         O: OutputFormat + 'static;
@@ -115,7 +120,8 @@ impl TDataStream for DataStream {
     where
         F: FlatMapFunction + 'static,
     {
-        self.data_stream.flat_map(flat_mapper)
+        TDataStream::flat_map(self.data_stream, flat_mapper)
+        // self.data_stream.flat_map(flat_mapper)
     }
 
     fn filter<F>(self, filter: F) -> DataStream
@@ -196,29 +202,6 @@ impl KeyedStream {
     pub(crate) fn new(keyed_stream: StreamBuilder) -> Self {
         KeyedStream { keyed_stream }
     }
-
-    pub fn connect<F>(self, data_streams: Vec<CoStream>, co_process: F) -> ConnectedStreams
-        where
-            F: CoProcessFunction + 'static,
-    {
-        let pipeline_stream_manager = self.keyed_stream.stream_manager.clone();
-        // Ensure `this` is placed in the last position!!!
-        // index trigger `process_left` at the last location, otherwise trigger `process_right`
-        let mut parent_streams: Vec<StreamBuilder> =
-            data_streams.into_iter().map(|x| x.into()).collect();
-        parent_streams.push(self.keyed_stream);
-
-        let parent_ids: Vec<OperatorId> =
-            parent_streams.iter().map(|x| x.cur_operator_id).collect();
-
-        let co_stream = StreamBuilder::with_connect(
-            pipeline_stream_manager,
-            Box::new(co_process),
-            parent_ids.clone(),
-        );
-
-        ConnectedStreams::new(co_stream, parent_ids)
-    }
 }
 
 impl TKeyedStream for KeyedStream {
@@ -228,6 +211,14 @@ impl TKeyedStream for KeyedStream {
     {
         self.keyed_stream.window(window_assigner)
     }
+
+    fn flat_map<F>(self, flat_map: F) -> DataStream
+    where
+        F: FlatMapFunction + 'static {
+        // self.keyed_stream.flat_map(flat_map)
+        TKeyedStream::flat_map(self.keyed_stream, flat_map)
+    }
+
 
     fn add_sink<O>(self, output_format: O) -> SinkStream
     where
@@ -420,6 +411,18 @@ impl TKeyedStream for StreamBuilder {
 
         WindowedStream::new(self)
     }
+
+    fn flat_map<F>(mut self, flat_map: F) -> DataStream where F: FlatMapFunction + 'static {
+        let map_func = Box::new(flat_map);
+        let stream_map = StreamOperator::new_map(map_func);
+
+        self.cur_operator_id = self
+            .stream_manager
+            .add_operator(stream_map, vec![self.cur_operator_id]);
+
+        DataStream::new(self)
+    }
+
 
     fn add_sink<O>(mut self, output_format: O) -> SinkStream
     where

@@ -254,7 +254,7 @@ impl CheckpointFunction for KafkaInputFormat {
 
 impl InputSplitSource for KafkaInputFormat {
     fn create_input_splits(&self, min_num_splits: u16) -> core::Result<Vec<InputSplit>> {
-        let timeout = Duration::from_secs(3);
+        let timeout = Duration::from_secs(30);
 
         info!("kafka config {:?}", self.client_config);
 

@@ -1,6 +1,7 @@
 mod app;
 mod function;
 mod buffer_gen;
+mod agg;
 
 #[macro_use]
 extern crate rlink_derive;
@@ -8,6 +9,8 @@ extern crate rlink_derive;
 extern crate log;
 #[macro_use]
 extern crate serde_derive;
+#[macro_use]
+extern crate lazy_static;
 
 extern crate anyhow;
 
@@ -16,6 +19,5 @@ extern crate anyhow;
 // }
 
 fn main() {
-    use buffer_gen2::model;
     rlink::core::env::execute(app::AlarmPlatformDemo::new());
 }

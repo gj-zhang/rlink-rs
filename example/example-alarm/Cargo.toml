@@ -35,6 +35,8 @@ uuid ={version="0.8",features=["v4"]}
 parquet= "4.0"
 webhdfs="0.3"
 
+dashmap = "5.4.0"
+lazy_static = "1.4.0"
 # kafka
 rdkafka = { version = "0.25", features = ["cmake-build"] }
 

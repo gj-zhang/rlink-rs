@@ -14,15 +14,13 @@ use rlink::utils::process::parse_arg;
 use rlink_connector_kafka::{BOOTSTRAP_SERVERS, GROUP_ID, KAFKA, OFFSET, TOPICS};
 use rlink_connector_kafka::sink::builder::KafkaOutputFormatBuilder;
 use rlink_connector_kafka::source::builder::KafkaInputFormatBuilder;
-use crate::buffer_gen2;
+use crate::function::alert_flatmap_function::AlertFlatMapFunction;
 
-use crate::function::alert_co_process_function::AlertCoProcessFunction;
 use crate::function::key_selector_function::DynamicKeySelectorFunction;
 use crate::function::rule_co_process_function::RuleCoProcessFunction;
 
 const KAFKA_FN_SOURCE: &'static str = "kafka_fn_source";
-const KAFKA_FN_RULE_SOURCE1: &'static str = "kafka_fn_rule_source1";
-const KAFKA_FN_RULE_SOURCE2: &'static str = "kafka_fn_rule_source2";
+const KAFKA_FN_RULE_SOURCE: &'static str = "kafka_fn_rule_source";
 const KAFKA_FN_SINK: &'static str = "kafka_fn_sink";
 
 #[derive(Clone, Debug)]
@@ -39,19 +37,18 @@ impl StreamApp for AlarmPlatformDemo {
         properties.set_application_name("Real-Time Alarm Platform Demo");
         properties.set_pub_sub_channel_size(1024 * 1000);
         properties.set_pub_sub_channel_base(ChannelBaseOn::Unbounded);
-        properties.set_checkpoint_interval(Duration::from_secs(2 * 60));
-        properties.set_checkpoint(CheckpointBackend::MySql {
-            endpoint: String::from("mysql://root@loaclhost:3306/rlink"),
-            table: Some("rlink_ck".to_string()),
-        });
+        // properties.set_checkpoint_interval(Duration::from_secs(2 * 60));
+        // properties.set_checkpoint(CheckpointBackend::MySql {
+        //     endpoint: String::from("mysql://root@loaclhost:3306/rlink"),
+        //     table: Some("rlink_ck".to_string()),
+        // });
 
-        let brokers = parse_arg("brokers").unwrap_or("localhost:9092".to_string());
-        let event_topic = parse_arg("event_topic").unwrap();
-        let rule_topic = parse_arg("rule_topic").unwrap();
-        let sink_topic = parse_arg("sink_topic").unwrap();
-        let group_id = parse_arg("group_id").unwrap_or("flink-test-group".to_string());
-        // let parallelism = parse_arg("parallelism").unwrap() as u16;
-        let parallelism = 1 as u16;
+        let brokers = parse_arg("brokers").unwrap_or("172.37.101.16:9092".to_string());
+        let event_topic = parse_arg("event_topic").unwrap_or("events".to_string());
+        let rule_topic = parse_arg("rule_topic").unwrap_or("alarm_zgj_rules".to_string());
+        let sink_topic = parse_arg("sink_topic").unwrap_or("alarm_zgj_alerts".to_string());
+        let group_id = parse_arg("group_id").unwrap_or("zgj_test_1".to_string());
+        let parallelism = parse_arg("parallelism").unwrap_or("1".to_string()).parse::<u16>().unwrap();
 
         let kafka_source_properties = {
             let mut source_properties = Properties::new();
@@ -61,6 +58,8 @@ impl StreamApp for AlarmPlatformDemo {
             let mut kafka_properties = Properties::new();
             kafka_properties.set_str(BOOTSTRAP_SERVERS, brokers.as_str());
             kafka_properties.set_str(GROUP_ID, group_id.as_str());
+            kafka_properties.set_str("message.timeout.ms", "30000");
+
             source_properties.extend_sub_properties(KAFKA, kafka_properties);
 
             // let offset_range = gen_kafka_offset_range(event_topic.as_str());
@@ -72,7 +71,7 @@ impl StreamApp for AlarmPlatformDemo {
 
         properties.extend_source(KAFKA_FN_SOURCE, kafka_source_properties);
 
-        let kafka_rule_source_properties1 = {
+        let kafka_rule_source_properties = {
             let mut source_properties = Properties::new();
             source_properties.set_u16("parallelism", parallelism);
             source_properties.set_str(TOPICS, rule_topic.as_str());
@@ -89,26 +88,7 @@ impl StreamApp for AlarmPlatformDemo {
             source_properties
         };
 
-        properties.extend_source(KAFKA_FN_RULE_SOURCE1, kafka_rule_source_properties1);
-
-        let kafka_rule_source_properties2 = {
-            let mut source_properties = Properties::new();
-            source_properties.set_u16("parallelism", parallelism);
-            source_properties.set_str(TOPICS, rule_topic.as_str());
-
-            let mut kafka_properties = Properties::new();
-            kafka_properties.set_str(BOOTSTRAP_SERVERS, brokers.as_str());
-            kafka_properties.set_str(GROUP_ID, group_id.as_str());
-            source_properties.extend_sub_properties(KAFKA, kafka_properties);
-
-            // let offset_range = gen_kafka_offset_range(rule_topic.as_str());
-            // let offset_properties = offset_range.into();
-            // source_properties.extend_sub_properties(OFFSET, offset_properties);
-
-            source_properties
-        };
-
-        properties.extend_source(KAFKA_FN_RULE_SOURCE2, kafka_rule_source_properties2);
+        properties.extend_source(KAFKA_FN_RULE_SOURCE, kafka_rule_source_properties);
 
         let kafka_sink_properties = {
             let mut sink_properties = Properties::new();
@@ -130,24 +110,19 @@ impl StreamApp for AlarmPlatformDemo {
         let event_source = KafkaInputFormatBuilder::try_from(properties.to_source(KAFKA_FN_SOURCE))
             .unwrap().build(None);
 
-        let rule_source1 = KafkaInputFormatBuilder::try_from(properties.to_source(KAFKA_FN_RULE_SOURCE1))
-            .unwrap().build(None);
-        let rule_source2 = KafkaInputFormatBuilder::try_from(properties.to_source(KAFKA_FN_RULE_SOURCE2))
+        let rule_source = KafkaInputFormatBuilder::try_from(properties.to_source(KAFKA_FN_RULE_SOURCE))
             .unwrap().build(None);
 
         let sink = KafkaOutputFormatBuilder::try_from(properties.to_sink(KAFKA_FN_SINK))
             .unwrap().build();
 
-        let rule_ds1 = env.register_source(rule_source1)
-            .flat_map(BroadcastFlagMapFunction::new());
-
-        let rule_ds2 = env.register_source(rule_source2)
+        let rule_ds = env.register_source(rule_source)
             .flat_map(BroadcastFlagMapFunction::new());
 
         env.register_source(event_source)
-            .connect(vec![CoStream::from(rule_ds1)], RuleCoProcessFunction::new())
+            .connect(vec![CoStream::from(rule_ds)], RuleCoProcessFunction::new())
             .key_by(DynamicKeySelectorFunction::new())
-            .connect(vec![CoStream::from(rule_ds2)], AlertCoProcessFunction::new())
+            .flat_map(AlertFlatMapFunction::new())
             .add_sink(sink);
     }
 
