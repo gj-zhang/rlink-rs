@@ -38,6 +38,10 @@ impl Context {
             self.completed_checkpoint_id,
         )
     }
+
+    pub fn children_len(&self) -> usize {
+        self.children.len()
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]

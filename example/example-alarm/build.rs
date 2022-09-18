@@ -1,8 +1,7 @@
 use serbuffer_gen::{Codegen, SchemaBuilder};
-use serbuffer_gen::DataType::{F64, I64, STRING, U32, U64};
+use serbuffer_gen::DataType::{F64, I32, I64, STRING, U32, U64};
 
 fn main() {
-
     Codegen::out_dir("buffer_gen")
         .schema(
             SchemaBuilder::new("alarm_rule")
@@ -13,20 +12,19 @@ fn main() {
                 .field("limit", U32)
                 .field("limitOperatorType", STRING)
                 .field("ruleState", STRING)
-                .field("windowMinutes", U32)
+                .field("windowMinutes", I32)
                 .set_serde_derive()
-                ,
+            ,
         )
         .schema(
             SchemaBuilder::new("alarm_event")
-                .field("transactionId", U32)
-                .field("eventTime", U32)
-                .field("payeeId", U32)
-                .field("beneficiaryId", U32)
+                .field("transactionId", I64)
+                .field("eventTime", I64)
+                .field("payeeId", I64)
+                .field("beneficiaryId", I64)
                 .field("paymentAmount", F64)
                 .field("paymentType", STRING)
                 .set_serde_derive()
-
         )
         .schema(
             SchemaBuilder::new("alarm_rule_event")
@@ -38,15 +36,15 @@ fn main() {
                 .field("aggregatorFunctionType", STRING)
                 .field("limitOperatorType", STRING)
                 .field("limit", F64)
-                .field("windowMinutes", U32)
+                .field("windowMinutes", I32)
                 .field("controlType", STRING)
-                .field("transactionId", U32)
-                .field("eventTime", U32)
-                .field("payeeId", U32)
-                .field("beneficiaryId", U32)
+                .field("transactionId", I64)
+                .field("eventTime", I64)
+                .field("payeeId", I64)
+                .field("beneficiaryId", I64)
                 .field("paymentAmount", F64)
                 .field("paymentType", STRING)
-                .field("ingestionTimestamp", U32)
+                .field("ingestionTimestamp", U64)
         )
         .schema(SchemaBuilder::new("dynamic_key")
             .field("dynamic_key", STRING)
@@ -59,7 +57,7 @@ fn main() {
             .field("triggeringValue", F64)
         )
         .schema(SchemaBuilder::new("cleanup")
-            .field("cleanup_time", U32)
+            .field("cleanup_time", I64)
             .set_serde_derive()
         )
         .gen()

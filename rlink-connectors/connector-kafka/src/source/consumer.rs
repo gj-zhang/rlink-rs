@@ -128,7 +128,6 @@ impl KafkaConsumerThread {
                     let key = borrowed_message.key().unwrap_or(&utils::EMPTY_SLICE);
                     let payload = borrowed_message.payload().unwrap_or(&utils::EMPTY_SLICE);
                     let s = str::from_bytes(payload).unwrap();
-                    info!("message: {}", s);
 
                     if self.end_check(topic, partition, offset) {
                         self.handover
@@ -143,7 +142,7 @@ impl KafkaConsumerThread {
 
                     let records = self
                         .deserializer
-                        .deserialize(timestamp, key, payload_clone, topic, partition, offset);
+                        .deserialize(timestamp, key, payload, topic, partition, offset);
 
                     for record in records {
                         self.handover

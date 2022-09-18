@@ -51,7 +51,7 @@ impl CoProcessFunction for RuleCoProcessFunction {
                 beneficiaryId: event.beneficiaryId,
                 paymentAmount: event.paymentAmount,
                 paymentType: event.paymentType,
-                ingestionTimestamp: date_time::current_timestamp_millis() as u32
+                ingestionTimestamp: date_time::current_timestamp_millis()
             };
             let mut record_new = Record::new();
             rule_event.to_buffer(record_new.as_buffer()).unwrap();
@@ -63,6 +63,7 @@ impl CoProcessFunction for RuleCoProcessFunction {
 
     // rule stream data
     fn process_right(&mut self, _stream_seq: usize, mut record: Record) -> Box<dyn Iterator<Item=Record>> {
+        info!("data-flow-log rule stream recv");
         let rule = alarm_rule::Entity::parse(record.as_buffer()).unwrap();
         self.rule_map.insert(rule.ruleId, record);
         Box::new(vec![].into_iter())

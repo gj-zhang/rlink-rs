@@ -15,6 +15,8 @@ use rlink_connector_kafka::{BOOTSTRAP_SERVERS, GROUP_ID, KAFKA, OFFSET, TOPICS};
 use rlink_connector_kafka::sink::builder::KafkaOutputFormatBuilder;
 use rlink_connector_kafka::source::builder::KafkaInputFormatBuilder;
 use crate::function::alert_flatmap_function::AlertFlatMapFunction;
+use crate::function::broadcast_serde_flatmap_function::BroadcastSerdeFlatMapFunction;
+use crate::function::event_flatmap_function::EventFlatMapFunction;
 
 use crate::function::key_selector_function::DynamicKeySelectorFunction;
 use crate::function::rule_co_process_function::RuleCoProcessFunction;
@@ -117,9 +119,10 @@ impl StreamApp for AlarmPlatformDemo {
             .unwrap().build();
 
         let rule_ds = env.register_source(rule_source)
-            .flat_map(BroadcastFlagMapFunction::new());
+            .flat_map(BroadcastSerdeFlatMapFunction::new());
 
         env.register_source(event_source)
+            .flat_map(EventFlatMapFunction::new())
             .connect(vec![CoStream::from(rule_ds)], RuleCoProcessFunction::new())
             .key_by(DynamicKeySelectorFunction::new())
             .flat_map(AlertFlatMapFunction::new())

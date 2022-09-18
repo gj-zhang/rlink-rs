@@ -52,7 +52,7 @@ impl OutputFormat for DorisSink {
                                       , self.schema.clone()
                                       , self.header.clone()
                                       , client
-                                      , self.handover.clone().unwrap(),
+                                      , self.handover.as_ref().unwrap().clone(),
                                           field_str_names);
 
 
@@ -125,7 +125,7 @@ impl DorisSinkTask {
         let start = utils::date_time::current_timestamp_millis();
         let mut values: Vec<HashMap<String, String>> = Vec::new();
         for _i in 0..self.options.sink_batch_size {
-            match self.handover.poll_next() {
+            match self.handover.try_poll_next() {
                 Ok(mut record) => {
                     let reader = record.as_buffer().as_reader(self.schema.as_type_ids());
 
