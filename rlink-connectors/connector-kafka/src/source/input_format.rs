@@ -153,7 +153,7 @@ impl KafkaInputFormat {
             partition,
             begin_offset: begin_partition
                 .map(|x| x.offset)
-                .unwrap_or(Offset::End.to_raw().unwrap()),
+                .unwrap_or(Offset::Beginning.to_raw().unwrap()),
             end_offset: end_partition.map(|x| x.offset),
         })
     }

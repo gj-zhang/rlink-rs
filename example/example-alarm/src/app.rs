@@ -45,8 +45,9 @@ impl StreamApp for AlarmPlatformDemo {
         //     table: Some("rlink_ck".to_string()),
         // });
 
-        let brokers = parse_arg("brokers").unwrap_or("172.37.101.16:9092".to_string());
-        let event_topic = parse_arg("event_topic").unwrap_or("events".to_string());
+        let brokers = parse_arg("brokers").unwrap_or("172.35.88.54:9092".to_string());
+        // let brokers = parse_arg("brokers").unwrap_or("172.37.101.16:9092".to_string());
+        let event_topic = parse_arg("event_topic").unwrap_or("alarm_zgj_events".to_string());
         let rule_topic = parse_arg("rule_topic").unwrap_or("alarm_zgj_rules".to_string());
         let sink_topic = parse_arg("sink_topic").unwrap_or("alarm_zgj_alerts".to_string());
         let group_id = parse_arg("group_id").unwrap_or("zgj_test_1".to_string());
@@ -61,7 +62,7 @@ impl StreamApp for AlarmPlatformDemo {
             let mut kafka_properties = Properties::new();
             kafka_properties.set_str(BOOTSTRAP_SERVERS, brokers.as_str());
             kafka_properties.set_str(GROUP_ID, group_id.as_str());
-            kafka_properties.set_str("auto.offset.reset", auto_offset_reset.as_str());
+            // kafka_properties.set_str("auto.offset.reset", auto_offset_reset.as_str());
 
             source_properties.extend_sub_properties(KAFKA, kafka_properties);
 

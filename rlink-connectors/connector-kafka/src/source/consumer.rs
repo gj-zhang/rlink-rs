@@ -127,7 +127,6 @@ impl KafkaConsumerThread {
                     let timestamp = borrowed_message.timestamp().to_millis().unwrap_or(0);
                     let key = borrowed_message.key().unwrap_or(&utils::EMPTY_SLICE);
                     let payload = borrowed_message.payload().unwrap_or(&utils::EMPTY_SLICE);
-                    let s = str::from_bytes(payload).unwrap();
 
                     if self.end_check(topic, partition, offset) {
                         self.handover
