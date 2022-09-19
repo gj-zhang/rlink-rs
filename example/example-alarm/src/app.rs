@@ -51,6 +51,7 @@ impl StreamApp for AlarmPlatformDemo {
         let sink_topic = parse_arg("sink_topic").unwrap_or("alarm_zgj_alerts".to_string());
         let group_id = parse_arg("group_id").unwrap_or("zgj_test_1".to_string());
         let parallelism = parse_arg("parallelism").unwrap_or("1".to_string()).parse::<u16>().unwrap();
+        let auto_offset_reset = parse_arg("auto_offset_reset").unwrap_or("latest".to_string());
 
         let kafka_source_properties = {
             let mut source_properties = Properties::new();
@@ -60,7 +61,7 @@ impl StreamApp for AlarmPlatformDemo {
             let mut kafka_properties = Properties::new();
             kafka_properties.set_str(BOOTSTRAP_SERVERS, brokers.as_str());
             kafka_properties.set_str(GROUP_ID, group_id.as_str());
-            kafka_properties.set_str("message.timeout.ms", "30000");
+            kafka_properties.set_str("auto.offset.reset", auto_offset_reset.as_str());
 
             source_properties.extend_sub_properties(KAFKA, kafka_properties);
 
