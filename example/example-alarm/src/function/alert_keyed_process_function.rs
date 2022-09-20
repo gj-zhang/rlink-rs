@@ -257,7 +257,7 @@ impl CleanUpTask {
                         }
                         // info!("end agg_map iter_mut");
                     }
-                    if self.i % 100 {
+                    if self.i % 100 == 0 {
                         info!("the cleanup handover clean event min_timestamp: {}, clean_timestamp: {},  cleaned count: {}, the aggmap size: {}, value_map: {}, value_map_vec: {}",
                         self.min_timestamp, cleanup.cleanup_time, self.i, AGG_MAP.len(), value_map, value_map_vec);
                     }
