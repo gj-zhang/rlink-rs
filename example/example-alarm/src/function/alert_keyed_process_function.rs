@@ -104,7 +104,7 @@ impl AlertKeyedProcessFunction {
 
         if alarm {
             let alarm_content = format!("Rule {:?} | {} : {} -> {}", rule_event, rule_event.groupingKeyNames, agg_result, alarm);
-            // info!("the alarm content: {}", alarm_content);
+            info!("the alarm content: {}", alarm_content);
         }
 
         let violated_rule = Rule {
@@ -205,8 +205,7 @@ impl KeyedProcessFunction for AlertKeyedProcessFunction {
 struct CleanUpTask {
     handover: Handover,
     i: i32,
-    value_map: i32,
-    value_map_vec: usize,
+    min_timestamp: i64,
 }
 
 impl CleanUpTask {
@@ -214,8 +213,7 @@ impl CleanUpTask {
         CleanUpTask {
             handover,
             i: 0,
-            value_map: 0,
-            value_map_vec: 0,
+            min_timestamp: i64::MAX,
         }
     }
 
@@ -224,16 +222,23 @@ impl CleanUpTask {
             match self.handover.try_poll_next() {
                 Ok(mut record) => {
                     let cleanup = cleanup::Entity::parse(record.as_buffer()).unwrap();
+                    let mut value_map = 0;
+                    let mut value_map_vec = 0;
                     {
                         // info!("start agg_map iter_mut");
                         for mut out in AGG_MAP.iter_mut() {
                             let mut keys: Vec<i64> = Vec::new();
+
                             {
                                 // info!("inner. before out.value().iter(), push key");
                                 for (k, v) in out.value().iter() {
-                                    self.value_map += 1;
-                                    self.value_map_vec += v.len();
-                                    if *k < cleanup.cleanup_time {
+                                    value_map += 1;
+                                    value_map_vec += v.len();
+                                    if *k < self.min_timestamp {
+                                        self.min_timestamp = *k;
+                                    }
+                                    // info!("event time : {}, cleanup_time: {}", *k, cleanup.cleanup_time);
+                                    if *k <= cleanup.cleanup_time {
                                         keys.push(*k);
                                     }
                                 }
@@ -252,10 +257,11 @@ impl CleanUpTask {
                         }
                         // info!("end agg_map iter_mut");
                     }
-                    info!("the cleanup handover clean event count: {}, the aggmap size: {}, value_map: {}, value_map_vec: {}", self.i, AGG_MAP.len(), self.value_map, self.value_map_vec);
-                    if self.i == 0 {
-                        async_sleep(Duration::from_secs(1)).await;
-                    }
+                    info!("the cleanup handover clean event min_timestamp: {}, clean_timestamp: {},  count: {}, the aggmap size: {}, value_map: {}, value_map_vec: {}",
+                        self.min_timestamp, cleanup.cleanup_time, self.i, AGG_MAP.len(), value_map, value_map_vec);
+                    // if self.i == 0 {
+                    //     async_sleep(Duration::from_secs(1)).await;
+                    // }
                 }
                 Err(e) => {
                     async_sleep(Duration::from_millis(1000)).await;

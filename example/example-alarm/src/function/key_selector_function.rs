@@ -27,12 +27,14 @@ impl KeySelectorFunction for DynamicKeySelectorFunction {
         let rule_event = alarm_rule_event::Entity::parse(record.as_buffer()).unwrap();
         let rule_id = rule_event.ruleId;
         let keys = rule_event.groupingKeyNames;
-        let key_splits = keys.split(",");
+        // let key_splits = keys.split(",");
         let mut key = String::new();
         key.push_str(rule_id.to_string().as_str());
-        for x in key_splits {
-            key.push_str(x)
-        }
+        key.push_str(rule_event.payeeId.to_string().as_str());
+        key.push_str(rule_event.beneficiaryId.to_string().as_str());
+        // for x in key_splits {
+        //     key.push_str(x)
+        // }
         let mut r = Record::new();
         let key = dynamic_key::Entity {
             dynamic_key: key.as_str()
