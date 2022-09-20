@@ -46,7 +46,6 @@ impl KafkaProducerThread {
             for _n in 0..batch {
                 match self.handover.try_poll_next() {
                     Ok(mut record) => {
-                        info!("record-error: {:?}", record);
                         let kafka_message::Entity {
                             timestamp,
                             key,

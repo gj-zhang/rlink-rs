@@ -257,11 +257,13 @@ impl CleanUpTask {
                         }
                         // info!("end agg_map iter_mut");
                     }
-                    info!("the cleanup handover clean event min_timestamp: {}, clean_timestamp: {},  count: {}, the aggmap size: {}, value_map: {}, value_map_vec: {}",
+                    if self.i % 100 {
+                        info!("the cleanup handover clean event min_timestamp: {}, clean_timestamp: {},  cleaned count: {}, the aggmap size: {}, value_map: {}, value_map_vec: {}",
                         self.min_timestamp, cleanup.cleanup_time, self.i, AGG_MAP.len(), value_map, value_map_vec);
-                    // if self.i == 0 {
-                    //     async_sleep(Duration::from_secs(1)).await;
-                    // }
+                    }
+                    if self.i == 0 {
+                        async_sleep(Duration::from_secs(1)).await;
+                    }
                 }
                 Err(e) => {
                     async_sleep(Duration::from_millis(1000)).await;
