@@ -21,6 +21,7 @@ pub mod sink_runnable;
 pub mod source_runnable;
 pub mod watermark_assigner_runnable;
 pub mod window_assigner_runnable;
+pub mod keyed_process_runnable;
 
 pub(crate) use filter_runnable::FilterRunnable;
 pub(crate) use flat_map_runnable::FlatMapRunnable;

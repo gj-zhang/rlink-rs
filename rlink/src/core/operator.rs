@@ -2,10 +2,7 @@ use std::fmt::Debug;
 
 use crate::core::data_types::Schema;
 use crate::core::element::FnSchema;
-use crate::core::function::{
-    BaseReduceFunction, CoProcessFunction, FilterFunction, FlatMapFunction, InputFormat,
-    KeySelectorFunction, NamedFunction, OutputFormat,
-};
+use crate::core::function::{BaseReduceFunction, CoProcessFunction, FilterFunction, FlatMapFunction, InputFormat, KeyedProcessFunction, KeySelectorFunction, NamedFunction, OutputFormat};
 use crate::core::watermark::WatermarkStrategy;
 use crate::core::window::WindowAssigner;
 
@@ -88,6 +85,7 @@ pub(crate) enum StreamOperator {
     StreamCoProcess(DefaultStreamOperator<dyn CoProcessFunction>),
     StreamKeyBy(DefaultStreamOperator<dyn KeySelectorFunction>),
     StreamReduce(DefaultStreamOperator<dyn BaseReduceFunction>),
+    StreamKeyedProcess(DefaultStreamOperator<dyn KeyedProcessFunction>),
     StreamWatermarkAssigner(DefaultStreamOperator<dyn WatermarkStrategy>),
     StreamWindowAssigner(DefaultStreamOperator<dyn WindowAssigner>),
     StreamSink(DefaultStreamOperator<dyn OutputFormat>),
@@ -130,6 +128,11 @@ impl StreamOperator {
     pub fn new_reduce(parallelism: u16, reduce_fn: Box<dyn BaseReduceFunction>) -> Self {
         let operator = DefaultStreamOperator::new(parallelism, FunctionCreator::User, reduce_fn);
         StreamOperator::StreamReduce(operator)
+    }
+
+    pub fn new_keyed_process(parallelism: u16, reduce_fn: Box<dyn KeyedProcessFunction>) -> Self {
+        let operator = DefaultStreamOperator::new(parallelism, FunctionCreator::User, reduce_fn);
+        StreamOperator::StreamKeyedProcess(operator)
     }
 
     pub fn new_watermark_assigner(watermark_assigner: Box<dyn WatermarkStrategy>) -> Self {
@@ -233,6 +236,7 @@ impl TStreamOperator for StreamOperator {
             StreamOperator::StreamCoProcess(op) => op.operator_name(),
             StreamOperator::StreamKeyBy(op) => op.operator_name(),
             StreamOperator::StreamReduce(op) => op.operator_name(),
+            StreamOperator::StreamKeyedProcess(op) => op.operator_name(),
             StreamOperator::StreamWatermarkAssigner(op) => op.operator_name(),
             StreamOperator::StreamWindowAssigner(op) => op.operator_name(),
             StreamOperator::StreamSink(op) => op.operator_name(),
@@ -247,6 +251,7 @@ impl TStreamOperator for StreamOperator {
             StreamOperator::StreamCoProcess(op) => op.parallelism(),
             StreamOperator::StreamKeyBy(op) => op.parallelism(),
             StreamOperator::StreamReduce(op) => op.parallelism(),
+            StreamOperator::StreamKeyedProcess(op) => op.parallelism(),
             StreamOperator::StreamWatermarkAssigner(op) => op.parallelism(),
             StreamOperator::StreamWindowAssigner(op) => op.parallelism(),
             StreamOperator::StreamSink(op) => op.parallelism(),
@@ -278,6 +283,9 @@ impl TStreamOperator for StreamOperator {
 
                 FnSchema::Tuple(Schema::empty(), schema)
             }
+            StreamOperator::StreamKeyedProcess(op) => {
+                op.operator_fn.schema(input_schema.clone())
+            },
             StreamOperator::StreamWatermarkAssigner(_op) => input_schema,
             StreamOperator::StreamWindowAssigner(_op) => input_schema,
             StreamOperator::StreamSink(op) => op.operator_fn.schema(input_schema),
@@ -292,6 +300,7 @@ impl TStreamOperator for StreamOperator {
             StreamOperator::StreamCoProcess(op) => op.fn_creator(),
             StreamOperator::StreamKeyBy(op) => op.fn_creator(),
             StreamOperator::StreamReduce(op) => op.fn_creator(),
+            StreamOperator::StreamKeyedProcess(op) => op.fn_creator(),
             StreamOperator::StreamWatermarkAssigner(op) => op.fn_creator(),
             StreamOperator::StreamWindowAssigner(op) => op.fn_creator(),
             StreamOperator::StreamSink(op) => op.fn_creator(),

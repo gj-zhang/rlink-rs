@@ -18,8 +18,8 @@ impl DynamicKeySelectorFunction {
 }
 
 impl KeySelectorFunction for DynamicKeySelectorFunction {
-    fn open(&mut self, context: &Context) -> rlink::core::Result<()> {
-        self.schema = context.input_schema.clone().into();
+    fn open(&mut self, _context: &Context) -> rlink::core::Result<()> {
+        // self.schema = context.input_schema.clone().into();
         Ok(())
     }
 

@@ -12,5 +12,4 @@ pub mod properties;
 pub mod runtime;
 pub mod watermark;
 pub mod window;
-
 pub use error::*;

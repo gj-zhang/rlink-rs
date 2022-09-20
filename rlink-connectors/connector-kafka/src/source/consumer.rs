@@ -1,7 +1,6 @@
 use futures::StreamExt;
 use rdkafka::consumer::{Consumer, DefaultConsumerContext, StreamConsumer};
 use rdkafka::{ClientConfig, Message, Offset, TopicPartitionList};
-use rdkafka::message::FromBytes;
 use rlink::channel::utils::handover::Handover;
 use rlink::core::runtime::JobId;
 use rlink::utils;

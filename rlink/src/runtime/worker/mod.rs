@@ -19,6 +19,7 @@ use crate::runtime::worker::runnable::{
     SinkRunnable, SourceRunnable, WatermarkAssignerRunnable, WindowAssignerRunnable,
 };
 use crate::runtime::HeartbeatItem;
+use crate::runtime::worker::runnable::keyed_process_runnable::KeyedProcessRunnable;
 
 pub mod checkpoint;
 pub mod heart_beat;
@@ -178,6 +179,13 @@ where
                     let stream_key_by =
                         self.get_dependency_key_by(operators.borrow_mut(), job_node.job_id);
                     let op = ReduceRunnable::new(operator_id, stream_key_by, stream_operator, None);
+                    let op: Box<dyn Runnable> = Box::new(op);
+                    op
+                }
+                StreamOperator::StreamKeyedProcess(stream_operator) => {
+                    let stream_key_by =
+                        self.get_dependency_key_by(operators.borrow_mut(), job_node.job_id);
+                    let op = KeyedProcessRunnable::new(operator_id, stream_key_by, stream_operator, None);
                     let op: Box<dyn Runnable> = Box::new(op);
                     op
                 }

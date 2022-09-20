@@ -205,6 +205,17 @@ where
     fn key_schema(&self, input_schema: FnSchema) -> FnSchema;
 }
 
+pub trait KeyedProcessFunction
+where
+    Self: NamedFunction + CheckpointFunction,
+{
+    fn open(&mut self, context: &Context) -> crate::core::Result<()>;
+    fn process(&self, key: Record, record: Record) -> Record;
+    fn close(&mut self) -> crate::core::Result<()>;
+    fn schema(&self, input_schema: FnSchema) -> FnSchema;
+    fn parallelism(&self) -> u16;
+}
+
 pub trait ReduceFunction
 where
     Self: NamedFunction,

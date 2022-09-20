@@ -2,10 +2,7 @@ use std::fmt::Debug;
 use std::rc::Rc;
 
 use crate::core::env::StreamManager;
-use crate::core::function::{
-    CoProcessFunction, FilterFunction, FlatMapFunction, InputFormat, KeySelectorFunction,
-    OutputFormat, ReduceFunction,
-};
+use crate::core::function::{CoProcessFunction, FilterFunction, FlatMapFunction, InputFormat, KeyedProcessFunction, KeySelectorFunction, OutputFormat, ReduceFunction};
 use crate::core::operator::{FunctionCreator, StreamOperator};
 use crate::core::runtime::OperatorId;
 use crate::core::watermark::WatermarkStrategy;
@@ -59,14 +56,12 @@ pub trait TKeyedStream {
     fn window<W>(self, window_assigner: W) -> WindowedStream
     where
         W: WindowAssigner + 'static;
-
-    fn flat_map<F>(self, flat_map: F) -> DataStream
-    where
-        F: FlatMapFunction + 'static;
-
     fn add_sink<O>(self, output_format: O) -> SinkStream
     where
         O: OutputFormat + 'static;
+    fn keyed_process<P>(self, process: P) -> DataStream
+    where
+        P: KeyedProcessFunction + 'static;
 }
 
 pub trait TWindowedStream {
@@ -211,20 +206,15 @@ impl TKeyedStream for KeyedStream {
     {
         self.keyed_stream.window(window_assigner)
     }
-
-    fn flat_map<F>(self, flat_map: F) -> DataStream
-    where
-        F: FlatMapFunction + 'static {
-        // self.keyed_stream.flat_map(flat_map)
-        TKeyedStream::flat_map(self.keyed_stream, flat_map)
-    }
-
-
     fn add_sink<O>(self, output_format: O) -> SinkStream
     where
         O: OutputFormat + 'static,
     {
         TKeyedStream::add_sink(self.keyed_stream, output_format)
+    }
+
+    fn keyed_process<P>(self, process: P) -> DataStream where P: KeyedProcessFunction + 'static {
+        TKeyedStream::keyed_process(self.keyed_stream, process)
     }
 }
 
@@ -244,7 +234,7 @@ impl TWindowedStream for WindowedStream {
     where
         F: ReduceFunction + 'static,
     {
-        self.windowed_stream.reduce(reduce)
+        TWindowedStream::reduce(self.windowed_stream, reduce)
     }
 }
 
@@ -412,18 +402,6 @@ impl TKeyedStream for StreamBuilder {
         WindowedStream::new(self)
     }
 
-    fn flat_map<F>(mut self, flat_map: F) -> DataStream where F: FlatMapFunction + 'static {
-        let map_func = Box::new(flat_map);
-        let stream_map = StreamOperator::new_map(map_func);
-
-        self.cur_operator_id = self
-            .stream_manager
-            .add_operator(stream_map, vec![self.cur_operator_id]);
-
-        DataStream::new(self)
-    }
-
-
     fn add_sink<O>(mut self, output_format: O) -> SinkStream
     where
         O: OutputFormat + 'static,
@@ -436,6 +414,16 @@ impl TKeyedStream for StreamBuilder {
             .add_operator(stream_sink, vec![self.cur_operator_id]);
 
         SinkStream::new(self)
+    }
+
+    fn keyed_process<P>(mut self, process: P) -> DataStream where P: KeyedProcessFunction + 'static {
+        let process = Box::new(process);
+        let parallelism = process.parallelism();
+
+        let keyed_stream_process = StreamOperator::new_keyed_process(parallelism, process);
+        self.cur_operator_id
+            = self.stream_manager.add_operator(keyed_stream_process, vec![self.cur_operator_id]);
+        DataStream::new(self)
     }
 }
 
