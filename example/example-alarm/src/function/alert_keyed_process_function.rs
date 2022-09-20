@@ -27,13 +27,15 @@ lazy_static! {
 #[derive(Function)]
 pub struct AlertKeyedProcessFunction {
     max_window_timestamp: AtomicI32,
+    parallelism: u16,
     handover: Option<Handover>,
 }
 
 impl AlertKeyedProcessFunction {
-    pub fn new() -> Self {
+    pub fn new(parallelism: u16) -> Self {
         AlertKeyedProcessFunction {
             max_window_timestamp: AtomicI32::new(i32::MIN),
+            parallelism,
             handover: None,
         }
     }
@@ -198,7 +200,7 @@ impl KeyedProcessFunction for AlertKeyedProcessFunction {
     }
 
     fn parallelism(&self) -> u16 {
-        1 as u16
+        self.parallelism
     }
 }
 

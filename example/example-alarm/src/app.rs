@@ -55,6 +55,8 @@ impl StreamApp for AlarmPlatformDemo {
         let parallelism = parse_arg("parallelism").unwrap_or("1".to_string()).parse::<u16>().unwrap();
         let auto_offset_reset = parse_arg("auto_offset_reset").unwrap_or("latest".to_string());
 
+        properties.set_u16("parallelism", parallelism);
+
         let kafka_source_properties = {
             let mut source_properties = Properties::new();
             source_properties.set_u16("parallelism", parallelism);
@@ -112,6 +114,7 @@ impl StreamApp for AlarmPlatformDemo {
     }
 
     fn build_stream(&self, properties: &Properties, env: &mut StreamExecutionEnvironment) {
+        let parallelism = properties.get_u16("parallelism").unwrap();
         let event_source = KafkaInputFormatBuilder::try_from(properties.to_source(KAFKA_FN_SOURCE))
             .unwrap().build(None);
 
@@ -128,7 +131,7 @@ impl StreamApp for AlarmPlatformDemo {
             .flat_map(EventFlatMapFunction::new())
             .connect(vec![CoStream::from(rule_ds)], RuleCoProcessFunction::new())
             .key_by(DynamicKeySelectorFunction::new())
-            .keyed_process(AlertKeyedProcessFunction::new())
+            .keyed_process(AlertKeyedProcessFunction::new(parallelism))
             .add_sink(sink);
     }
 
