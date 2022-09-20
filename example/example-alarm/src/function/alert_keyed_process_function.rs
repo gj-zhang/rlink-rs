@@ -22,11 +22,11 @@ use crate::buffer_gen::{alarm_event, alarm_rule, alarm_rule_event, alert, cleanu
 
 lazy_static! {
     static ref AGG_MAP: DashMap<Record, HashMap<i64, Vec<f64>>> = DashMap::new();
+    static ref MAX_WINDOW_TIMESTAMP: AtomicI32 = AtomicI32::new(i32::MIN);
 }
 
 #[derive(Function)]
 pub struct AlertKeyedProcessFunction {
-    max_window_timestamp: AtomicI32,
     parallelism: u16,
     handover: Option<Handover>,
 }
@@ -34,7 +34,6 @@ pub struct AlertKeyedProcessFunction {
 impl AlertKeyedProcessFunction {
     pub fn new(parallelism: u16) -> Self {
         AlertKeyedProcessFunction {
-            max_window_timestamp: AtomicI32::new(i32::MIN),
             parallelism,
             handover: None,
         }
@@ -152,18 +151,18 @@ impl AlertKeyedProcessFunction {
 
 
         // prepare cleanup
-        if event_window_millis > self.max_window_timestamp.load(Ordering::Relaxed) {
-            self.max_window_timestamp.store(event_window_millis, Ordering::Relaxed);
+        if event_window_millis > MAX_WINDOW_TIMESTAMP.load(Ordering::Relaxed) {
+            MAX_WINDOW_TIMESTAMP.store(event_window_millis, Ordering::Relaxed);
         }
 
-        let cleanup_time_threshold = event_time - (self.max_window_timestamp.load(Ordering::Relaxed)) as i64;
-        let cleanup_entity = cleanup::Entity {
-            cleanup_time: cleanup_time_threshold,
-        };
-
-        let mut cleanup_record = Record::new();
-        cleanup_entity.to_buffer(cleanup_record.as_buffer()).unwrap();
-        self.handover.as_ref().unwrap().produce(cleanup_record).unwrap();
+        // let cleanup_time_threshold = event_time - (MAX_WINDOW_TIMESTAMP.load(Ordering::Relaxed)) as i64;
+        // let cleanup_entity = cleanup::Entity {
+        //     cleanup_time: cleanup_time_threshold,
+        // };
+        //
+        // let mut cleanup_record = Record::new();
+        // cleanup_entity.to_buffer(cleanup_record.as_buffer()).unwrap();
+        // self.handover.as_ref().unwrap().produce(cleanup_record).unwrap();
         if alarm {
             Ok(v)
         } else {
@@ -221,59 +220,114 @@ impl CleanUpTask {
 
     pub async fn clean_up(mut self) {
         loop {
-            match self.handover.try_poll_next() {
-                Ok(mut record) => {
-                    let cleanup = cleanup::Entity::parse(record.as_buffer()).unwrap();
-                    let mut value_map = 0;
-                    let mut value_map_vec = 0;
+            let mut value_map = 0;
+            let mut value_map_vec = 0;
+            let start = current_timestamp_millis();
+            {
+                // info!("start agg_map iter_mut");
+                for mut out in AGG_MAP.iter_mut() {
+                    let mut keys: Vec<i64> = Vec::new();
+                    let mut max_timestamp = i64::MIN;
                     {
-                        // info!("start agg_map iter_mut");
-                        for mut out in AGG_MAP.iter_mut() {
-                            let mut keys: Vec<i64> = Vec::new();
-
-                            {
-                                // info!("inner. before out.value().iter(), push key");
-                                for (k, v) in out.value().iter() {
-                                    value_map += 1;
-                                    value_map_vec += v.len();
-                                    if *k < self.min_timestamp {
-                                        self.min_timestamp = *k;
-                                    }
-                                    // info!("event time : {}, cleanup_time: {}", *k, cleanup.cleanup_time);
-                                    if *k <= cleanup.cleanup_time {
-                                        keys.push(*k);
-                                    }
-                                }
-                                // info!("inner.after out.value().iter(), push key");
+                        // info!("inner. before out.value().iter(), push key");
+                        for (k, v) in out.value().iter() {
+                            value_map += 1;
+                            value_map_vec += v.len();
+                            if *k < self.min_timestamp {
+                                self.min_timestamp = *k;
                             }
-                            {
-                                // info!("inner. before prepare remove inner map");
-                                let s = out.value_mut();
-                                for x in keys {
-                                    // info!("inner. inner prepare remove inner map");
-                                    self.i += 1;
-                                    s.remove(&x);
-                                }
-                                // info!("inner. before prepare remove inner map");
+                            if *k > max_timestamp {
+                                max_timestamp = *k;
                             }
                         }
-                        // info!("end agg_map iter_mut");
+                        // info!("inner.after out.value().iter(), push key");
                     }
-                    if self.i != 0 && self.i % 10000 == 0 {
-                        info!("the cleanup handover clean event min_timestamp: {}, clean_timestamp: {},  cleaned count: {}, the aggmap size: {}, value_map: {}, value_map_vec: {}",
-                        self.min_timestamp, cleanup.cleanup_time, self.i, AGG_MAP.len(), value_map, value_map_vec);
+                    let cleanup_time_threshold = max_timestamp - MAX_WINDOW_TIMESTAMP.load(Ordering::Relaxed) as i64;
+                    {
+                        for (k, v) in out.value().iter() {
+                            if *k <= cleanup_time_threshold {
+                                keys.push(*k);
+                            }
+                        }
                     }
-                    // if self.i == 0 {
-                    //     async_sleep(Duration::from_secs(1)).await;
-                    // }
-                }
-                Err(e) => {
-                    async_sleep(Duration::from_millis(1000)).await;
-                    warn!("the cleanup handover recv error: {}", e);
+                    {
+                        // info!("inner. before prepare remove inner map");
+                        let s = out.value_mut();
+                        for x in keys {
+                            // info!("inner. inner prepare remove inner map");
+                            self.i += 1;
+                            s.remove(&x);
+                        }
+                        // info!("inner. before prepare remove inner map");
+                    }
                 }
             }
+            // info!("end agg_map iter_mut");
+            let end = current_timestamp_millis();
+
+
+            info!("the cleanup handover clean event min_timestamp: {}, max_window_millis: {},  cleaned count: {}, the aggmap size: {}, value_map: {}, value_map_vec: {}, interval: {}ms",
+                        self.min_timestamp, MAX_WINDOW_TIMESTAMP.load(Ordering::Relaxed), self.i, AGG_MAP.len(), value_map, value_map_vec, end - start);
+
+            async_sleep(Duration::from_millis(10000)).await;
         }
     }
+
+    // pub async fn clean_up(mut self) {
+    //     loop {
+    //         match self.handover.try_poll_next() {
+    //             Ok(mut record) => {
+    //                 let cleanup = cleanup::Entity::parse(record.as_buffer()).unwrap();
+    //                 let mut value_map = 0;
+    //                 let mut value_map_vec = 0;
+    //                 {
+    //                     // info!("start agg_map iter_mut");
+    //                     for mut out in AGG_MAP.iter_mut() {
+    //                         let mut keys: Vec<i64> = Vec::new();
+    //
+    //                         {
+    //                             // info!("inner. before out.value().iter(), push key");
+    //                             for (k, v) in out.value().iter() {
+    //                                 value_map += 1;
+    //                                 value_map_vec += v.len();
+    //                                 if *k < self.min_timestamp {
+    //                                     self.min_timestamp = *k;
+    //                                 }
+    //                                 // info!("event time : {}, cleanup_time: {}", *k, cleanup.cleanup_time);
+    //                                 if *k <= cleanup.cleanup_time {
+    //                                     keys.push(*k);
+    //                                 }
+    //                             }
+    //                             // info!("inner.after out.value().iter(), push key");
+    //                         }
+    //                         {
+    //                             // info!("inner. before prepare remove inner map");
+    //                             let s = out.value_mut();
+    //                             for x in keys {
+    //                                 // info!("inner. inner prepare remove inner map");
+    //                                 self.i += 1;
+    //                                 s.remove(&x);
+    //                             }
+    //                             // info!("inner. before prepare remove inner map");
+    //                         }
+    //                     }
+    //                     // info!("end agg_map iter_mut");
+    //                 }
+    //                 if self.i != 0 && self.i % 10000 == 0 {
+    //                     info!("the cleanup handover clean event min_timestamp: {}, clean_timestamp: {},  cleaned count: {}, the aggmap size: {}, value_map: {}, value_map_vec: {}",
+    //                     self.min_timestamp, cleanup.cleanup_time, self.i, AGG_MAP.len(), value_map, value_map_vec);
+    //                 }
+    //                 // if self.i == 0 {
+    //                 //     async_sleep(Duration::from_secs(1)).await;
+    //                 // }
+    //             }
+    //             Err(e) => {
+    //                 async_sleep(Duration::from_millis(1000)).await;
+    //                 warn!("the cleanup handover recv error: {}", e);
+    //             }
+    //         }
+    //     }
+    // }
 }
 
 #[derive(Serialize, Deserialize)]
