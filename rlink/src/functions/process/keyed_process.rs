@@ -17,7 +17,7 @@ impl KeyedProcessFunction for BaseKeyedProcessFunction {
         unimplemented!("you should implement it by yourself")
     }
 
-    fn process(&self, key: Record, record: Record) -> Record {
+    fn process(&self, key: Record, record: Record) -> Option<Record> {
         unimplemented!("you should implement it by yourself")
     }
 

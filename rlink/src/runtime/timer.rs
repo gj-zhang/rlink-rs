@@ -127,8 +127,8 @@ fn check_window(timer_channels: &mut Vec<TimerChannel>) {
                 Ok(_) => {
                     if full_errs > 0 {
                         info!(
-                            "TimerChannel(interval={}ms) has resumed to normal",
-                            timer_channel.interval.as_millis(),
+                            "TimerChannel(name={},interval={}ms) has resumed to normal",
+                            timer_channel.name,timer_channel.interval.as_millis(),
                         )
                     }
                     full_errs = 0;
@@ -136,8 +136,8 @@ fn check_window(timer_channels: &mut Vec<TimerChannel>) {
                 Err(e) => {
                     if full_errs == 0 {
                         error!(
-                            "TimerChannel(interval={}ms) is full. {}",
-                            timer_channel.interval.as_millis(),
+                            "TimerChannel(name={},interval={}ms) is full. {}",
+                            timer_channel.name,timer_channel.interval.as_millis(),
                             e
                         )
                     }

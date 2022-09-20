@@ -14,7 +14,6 @@ use rlink::utils::process::parse_arg;
 use rlink_connector_kafka::{BOOTSTRAP_SERVERS, GROUP_ID, KAFKA, OFFSET, TOPICS};
 use rlink_connector_kafka::sink::builder::KafkaOutputFormatBuilder;
 use rlink_connector_kafka::source::builder::KafkaInputFormatBuilder;
-use crate::function::alert_flatmap_function::AlertFlatMapFunction;
 use crate::function::alert_keyed_process_function::AlertKeyedProcessFunction;
 use crate::function::broadcast_serde_flatmap_function::BroadcastSerdeFlatMapFunction;
 use crate::function::event_flatmap_function::EventFlatMapFunction;

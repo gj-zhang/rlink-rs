@@ -5,6 +5,7 @@ use std::sync::atomic::{AtomicI32, Ordering};
 use std::time::Duration;
 
 use dashmap::DashMap;
+use get_size::GetSize;
 
 use rlink::channel::utils::handover::Handover;
 use rlink::core::data_types::Schema;
@@ -39,7 +40,7 @@ impl AlertKeyedProcessFunction {
         }
     }
 
-    fn process_0(&self, key: Record, mut record: Record) -> rlink::core::Result<Record> {
+    fn process_0(&self, key: Record, mut record: Record) -> rlink::core::Result<Option<Record>> {
         let rule_event = alarm_rule_event::Entity::parse(record.as_buffer()).unwrap();
         let event_window_millis = rule_event.windowMinutes * 1000;
         let event_time = rule_event.eventTime;
@@ -67,7 +68,7 @@ impl AlertKeyedProcessFunction {
         };
 
         if !rule_event.ruleState.eq_ignore_ascii_case("ACTIVE") {
-            return Ok(Record::new());
+            return Ok(None);
         }
 
         let window_start_millis = event_time - event_window_millis as i64;
@@ -164,9 +165,9 @@ impl AlertKeyedProcessFunction {
         // cleanup_entity.to_buffer(cleanup_record.as_buffer()).unwrap();
         // self.handover.as_ref().unwrap().produce(cleanup_record).unwrap();
         if alarm {
-            Ok(v)
+            Ok(Some(v))
         } else {
-            Ok(Record::new())
+            Ok(None)
         }
     }
 }
@@ -194,7 +195,7 @@ impl KeyedProcessFunction for AlertKeyedProcessFunction {
         FnSchema::Single(Schema::from(&alert::FIELD_METADATA))
     }
 
-    fn process(&self, key: Record, record: Record) -> Record {
+    fn process(&self, key: Record, record: Record) -> Option<Record> {
         self.process_0(key, record).unwrap()
     }
 
@@ -222,6 +223,7 @@ impl CleanUpTask {
         loop {
             let mut value_map = 0;
             let mut value_map_vec = 0;
+            let mut bytes = 0;
             let start = current_timestamp_millis();
             {
                 // info!("start agg_map iter_mut");
@@ -230,7 +232,9 @@ impl CleanUpTask {
                     let mut max_timestamp = i64::MIN;
                     {
                         // info!("inner. before out.value().iter(), push key");
-                        for (k, v) in out.value().iter() {
+                        let inner = out.value();
+                        bytes += (*inner).get_size();
+                        for (k, v) in inner.iter() {
                             value_map += 1;
                             value_map_vec += v.len();
                             if *k < self.min_timestamp {
@@ -264,10 +268,8 @@ impl CleanUpTask {
             }
             // info!("end agg_map iter_mut");
             let end = current_timestamp_millis();
-
-
-            info!("the cleanup handover clean event min_timestamp: {}, max_window_millis: {},  cleaned count: {}, the aggmap size: {}, value_map: {}, value_map_vec: {}, interval: {}ms",
-                        self.min_timestamp, MAX_WINDOW_TIMESTAMP.load(Ordering::Relaxed), self.i, AGG_MAP.len(), value_map, value_map_vec, end - start);
+            info!("the cleanup handover clean event min_timestamp: {}, max_window_millis: {},  cleaned count: {}, the aggmap size: {}, value_map: {}, value_map_vec: {}, interval: {}ms, agg_map size: {}",
+                        self.min_timestamp, MAX_WINDOW_TIMESTAMP.load(Ordering::Relaxed), self.i, AGG_MAP.len(), value_map, value_map_vec, end - start, bytes);
 
             async_sleep(Duration::from_millis(10000)).await;
         }

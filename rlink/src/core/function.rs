@@ -210,7 +210,7 @@ where
     Self: NamedFunction + CheckpointFunction,
 {
     fn open(&mut self, context: &Context) -> crate::core::Result<()>;
-    fn process(&self, key: Record, record: Record) -> Record;
+    fn process(&self, key: Record, record: Record) -> Option<Record>;
     fn close(&mut self) -> crate::core::Result<()>;
     fn schema(&self, input_schema: FnSchema) -> FnSchema;
     fn parallelism(&self) -> u16;

@@ -39,6 +39,6 @@ dashmap = "5.4.0"
 lazy_static = "1.4.0"
 # kafka
 rdkafka = { version = "0.25", features = ["cmake-build"] }
-
+get-size = "0.1.1"
 [build-dependencies]
 serbuffer-gen = "1.3"

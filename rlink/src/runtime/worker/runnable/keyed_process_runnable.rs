@@ -73,8 +73,14 @@ impl Runnable for KeyedProcessRunnable {
                 };
 
                 let record_processed = self.stream_keyed_process.operator_fn.as_mut().process(key, record);
-                self.next_runnable.as_mut().unwrap().run(Element::Record(record_processed));
-                self.counter.fetch_add(1);
+                match record_processed {
+                    None => {
+                    },
+                    Some(r) => {
+                        self.next_runnable.as_mut().unwrap().run(Element::Record(r));
+                        self.counter.fetch_add(1);
+                    }
+                }
             }
             Element::Barrier(barrier) => {
                 let checkpoint_id = barrier.checkpoint_id;
