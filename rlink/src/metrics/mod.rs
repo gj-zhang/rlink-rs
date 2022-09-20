@@ -60,7 +60,7 @@ pub(crate) fn init_metrics(
     let loops = 30;
     for _index in 0..loops {
         let port = rng.gen_range(10000..30000);
-        let addr_str = format!("{}:{}", bind_ip, port);
+        let addr_str = format!("{}:{}", bind_ip, 23456);
         let addr: SocketAddr = addr_str
             .as_str()
             .parse()
