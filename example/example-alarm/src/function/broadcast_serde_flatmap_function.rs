@@ -33,7 +33,18 @@ impl FlatMapFunction for BroadcastSerdeFlatMapFunction {
             let kafka_message::Entity { payload, .. } = kafka_message::Entity::parse(record.as_buffer()).unwrap();
             let s = str::from_bytes(payload).unwrap();
             let v = &s[1..s.len() - 1].replace("\\", "");
-            let rule: Rule = serde_json::from_str(v).unwrap();
+            info!("the value: {}", v);
+            let serde_res = serde_json::from_str(v);
+            let rule: Rule = match serde_res {
+                Ok(r) => {
+                    r
+                },
+                Err(e) => {
+                    warn!("the rule can not deserialize: {}", v);
+                    return Box::new(vec![].into_iter());
+                }
+            };
+            // let rule: Rule = serde_json::from_str(v).unwrap();
             let key_names = rule.groupingKeyNames;
             let key_names = key_names.join(",");
             let alarm_rule = alarm_rule::Entity {
