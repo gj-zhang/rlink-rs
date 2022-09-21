@@ -22,7 +22,7 @@ use crate::agg::sum_accumulator::SumAccumulator;
 use crate::buffer_gen::{alarm_event, alarm_rule, alarm_rule_event, alert, cleanup, dynamic_key};
 
 lazy_static! {
-    static ref AGG_MAP: DashMap<Record, HashMap<i64, Vec<f64>>> = DashMap::new();
+    // static ref AGG_MAP: DashMap<Record, HashMap<i64, Vec<f64>>> = DashMap::new();
     static ref MAX_WINDOW_TIMESTAMP: AtomicI32 = AtomicI32::new(i32::MIN);
 }
 
@@ -53,12 +53,12 @@ impl AlertKeyedProcessFunction {
             }
         }
 
-        {
-            let key_clone = key.clone();
-            let mut s = AGG_MAP.entry(key_clone).or_insert(HashMap::new());
-            let v = s.entry(event_time).or_insert(Vec::new());
-            v.push(rule_event.paymentAmount);
-        }
+        // {
+        //     let key_clone = key.clone();
+        //     let mut s = AGG_MAP.entry(key_clone).or_insert(HashMap::new());
+        //     let v = s.entry(event_time).or_insert(Vec::new());
+        //     v.push(rule_event.paymentAmount);
+        // }
 
         let function_type = rule_event.aggregatorFunctionType;
         let accumulator = if "sum".eq_ignore_ascii_case(function_type) {
@@ -74,17 +74,18 @@ impl AlertKeyedProcessFunction {
         let window_start_millis = event_time - event_window_millis as i64;
         let mut acc = accumulator.unwrap();
 
-        {
-            let entry = AGG_MAP.entry(key).or_insert(HashMap::new());
-            let hash_map = entry.value();
-            for (t, vec) in hash_map.iter() {
-                if *t > window_start_millis && *t <= event_time {
-                    for x in vec {
-                        acc.add(*x);
-                    }
-                }
-            }
-        }
+        acc.add(rule_event.paymentAmount);
+        // {
+        //     let entry = AGG_MAP.entry(key).or_insert(HashMap::new());
+        //     let hash_map = entry.value();
+        //     for (t, vec) in hash_map.iter() {
+        //         if *t > window_start_millis && *t <= event_time {
+        //             for x in vec {
+        //                 acc.add(*x);
+        //             }
+        //         }
+        //     }
+        // }
 
         let agg_result = acc.get_local_value();
 
@@ -106,7 +107,7 @@ impl AlertKeyedProcessFunction {
 
         if alarm {
             let alarm_content = format!("Rule {:?} | {} : {} -> {}", rule_event, rule_event.groupingKeyNames, agg_result, alarm);
-            info!("the alarm content: {}", alarm_content);
+            info!("the alarm content: {}", agg_result);
         }
 
         let violated_rule = Rule {
@@ -227,49 +228,49 @@ impl CleanUpTask {
             let start = current_timestamp_millis();
             {
                 // info!("start agg_map iter_mut");
-                for mut out in AGG_MAP.iter_mut() {
-                    let mut keys: Vec<i64> = Vec::new();
-                    let mut max_timestamp = i64::MIN;
-                    {
-                        // info!("inner. before out.value().iter(), push key");
-                        let inner = out.value();
-                        bytes += (*inner).get_size();
-                        for (k, v) in inner.iter() {
-                            value_map += 1;
-                            value_map_vec += v.len();
-                            if *k < self.min_timestamp {
-                                self.min_timestamp = *k;
-                            }
-                            if *k > max_timestamp {
-                                max_timestamp = *k;
-                            }
-                        }
-                        // info!("inner.after out.value().iter(), push key");
-                    }
-                    let cleanup_time_threshold = max_timestamp - MAX_WINDOW_TIMESTAMP.load(Ordering::Relaxed) as i64;
-                    {
-                        for (k, v) in out.value().iter() {
-                            if *k <= cleanup_time_threshold {
-                                keys.push(*k);
-                            }
-                        }
-                    }
-                    {
-                        // info!("inner. before prepare remove inner map");
-                        let s = out.value_mut();
-                        for x in keys {
-                            // info!("inner. inner prepare remove inner map");
-                            self.i += 1;
-                            s.remove(&x);
-                        }
-                        // info!("inner. before prepare remove inner map");
-                    }
-                }
+                // for mut out in AGG_MAP.iter_mut() {
+                //     let mut keys: Vec<i64> = Vec::new();
+                //     let mut max_timestamp = i64::MIN;
+                //     {
+                //         // info!("inner. before out.value().iter(), push key");
+                //         let inner = out.value();
+                //         bytes += (*inner).get_size();
+                //         for (k, v) in inner.iter() {
+                //             value_map += 1;
+                //             value_map_vec += v.len();
+                //             if *k < self.min_timestamp {
+                //                 self.min_timestamp = *k;
+                //             }
+                //             if *k > max_timestamp {
+                //                 max_timestamp = *k;
+                //             }
+                //         }
+                //         // info!("inner.after out.value().iter(), push key");
+                //     }
+                //     let cleanup_time_threshold = max_timestamp - MAX_WINDOW_TIMESTAMP.load(Ordering::Relaxed) as i64;
+                //     {
+                //         for (k, v) in out.value().iter() {
+                //             if *k <= cleanup_time_threshold {
+                //                 keys.push(*k);
+                //             }
+                //         }
+                //     }
+                //     {
+                //         // info!("inner. before prepare remove inner map");
+                //         let s = out.value_mut();
+                //         for x in keys {
+                //             // info!("inner. inner prepare remove inner map");
+                //             self.i += 1;
+                //             s.remove(&x);
+                //         }
+                //         // info!("inner. before prepare remove inner map");
+                //     }
+                // }
             }
             // info!("end agg_map iter_mut");
-            let end = current_timestamp_millis();
-            info!("the cleanup handover clean event min_timestamp: {}, max_window_millis: {},  cleaned count: {}, the aggmap size: {}, value_map: {}, value_map_vec: {}, interval: {}ms, agg_map size: {}",
-                        self.min_timestamp, MAX_WINDOW_TIMESTAMP.load(Ordering::Relaxed), self.i, AGG_MAP.len(), value_map, value_map_vec, end - start, bytes);
+            // let end = current_timestamp_millis();
+            // info!("the cleanup handover clean event min_timestamp: {}, max_window_millis: {},  cleaned count: {}, the aggmap size: {}, value_map: {}, value_map_vec: {}, interval: {}ms, agg_map size: {}",
+            //             self.min_timestamp, MAX_WINDOW_TIMESTAMP.load(Ordering::Relaxed), self.i, AGG_MAP.len(), value_map, value_map_vec, end - start, bytes);
 
             async_sleep(Duration::from_millis(10000)).await;
         }
