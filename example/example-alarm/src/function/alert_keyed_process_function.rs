@@ -165,8 +165,7 @@ impl AlertKeyedProcessFunction {
 
 impl KeyedProcessFunction for AlertKeyedProcessFunction {
     fn open(&mut self, context: &Context) -> rlink::core::Result<()> {
-        self.handover = Some(Handover::new(self.name(), context.task_id.to_tags(), 10000));
-        let mut task = CleanUpTask::new(self.handover.as_ref().unwrap().clone());
+        let mut task = CleanUpTask::new();
 
         utils::thread::spawn("alert-flatmap-clean-state-block", move || {
             async_runtime("alert-flatmap-clean-state").block_on(async {
@@ -196,19 +195,15 @@ impl KeyedProcessFunction for AlertKeyedProcessFunction {
 }
 
 struct CleanUpTask {
-    handover: Handover,
     inner_remove_count: i32,
     out_remove_count: i32,
-    min_timestamp: i64,
 }
 
 impl CleanUpTask {
-    pub fn new(handover: Handover) -> CleanUpTask {
+    pub fn new() -> CleanUpTask {
         CleanUpTask {
-            handover,
             inner_remove_count: 0,
             out_remove_count: 0,
-            min_timestamp: i64::MAX,
         }
     }
 
@@ -216,29 +211,30 @@ impl CleanUpTask {
         loop {
             let mut value_map = 0;
             let mut bytes = 0;
-            let start = current_timestamp_millis();
+            let mut max_timestamp = i64::MIN;
+            let mut min_timestamp = i64::MAX;
             let mut remove_outer_keys = Vec::new();
+            let start = current_timestamp_millis();
+            {
+                for out in AGG_MAP.iter() {
+                    let inner = out.value();
+                    bytes += inner.get_size();
+                    for (k, v) in inner.iter() {
+                        value_map += 1;
+                        if *k < min_timestamp {
+                            min_timestamp = *k;
+                        }
+                        if *k > max_timestamp {
+                            max_timestamp = *k;
+                        }
+                    }
+                }
+            }
+            let cleanup_time_threshold = max_timestamp - MAX_WINDOW_TIMESTAMP.load(Ordering::Relaxed) as i64;
             {
                 // info!("start agg_map iter_mut");
                 for mut out in AGG_MAP.iter_mut() {
                     let mut keys: Vec<i64> = Vec::new();
-                    let mut max_timestamp = i64::MIN;
-                    {
-                        // info!("inner. before out.value().iter(), push key");
-                        let inner = out.value();
-                        bytes += (*inner).get_size();
-                        for (k, v) in inner.iter() {
-                            value_map += 1;
-                            if *k < self.min_timestamp {
-                                self.min_timestamp = *k;
-                            }
-                            if *k > max_timestamp {
-                                max_timestamp = *k;
-                            }
-                        }
-                        // info!("inner.after out.value().iter(), push key");
-                    }
-                    let cleanup_time_threshold = max_timestamp - MAX_WINDOW_TIMESTAMP.load(Ordering::Relaxed) as i64;
                     {
                         for (k, v) in out.value().iter() {
                             if *k <= cleanup_time_threshold {
@@ -255,7 +251,6 @@ impl CleanUpTask {
                             s.remove(&x);
                         }
                         if s.len() == 0 {
-                            info!("the outer map need to be cleaned.");
                             let s = out.key();
                             remove_outer_keys.push(s.clone());
                         }
@@ -269,10 +264,10 @@ impl CleanUpTask {
             }
             // info!("end agg_map iter_mut");
             let end = current_timestamp_millis();
-            info!("the cleanup handover clean event min_timestamp: {}, max_window_millis: {},  cleaned inner count: {},cleaned out count: {}, the aggmap size: {}, value_map: {}, interval: {}ms, agg_map size: {}",
-                        self.min_timestamp, MAX_WINDOW_TIMESTAMP.load(Ordering::Relaxed), self.inner_remove_count,self.out_remove_count, AGG_MAP.len(), value_map, end - start, bytes);
+            info!("the cleanup handover clean event min_timestamp: {}, max_timestamp: {}, max_window_millis: {},  cleaned inner count: {},cleaned out count: {}, the agg_map len: {}, value_map: {}, interval: {}ms, agg_map size: {}",
+                        min_timestamp, max_timestamp,MAX_WINDOW_TIMESTAMP.load(Ordering::Relaxed), self.inner_remove_count,self.out_remove_count, AGG_MAP.len(), value_map, end - start, bytes);
 
-            async_sleep(Duration::from_millis(5000)).await;
+            async_sleep(Duration::from_millis(3000)).await;
         }
     }
 
