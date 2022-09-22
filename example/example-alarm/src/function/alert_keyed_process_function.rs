@@ -22,7 +22,7 @@ use crate::agg::sum_accumulator::SumAccumulator;
 use crate::buffer_gen::{alarm_event, alarm_rule, alarm_rule_event, alert, cleanup, dynamic_key};
 
 lazy_static! {
-    static ref AGG_MAP: DashMap<Record, HashMap<i64, Vec<f64>>> = DashMap::new();
+    static ref AGG_MAP: DashMap<String, HashMap<i64, f64>> = DashMap::new();
     static ref MAX_WINDOW_TIMESTAMP: AtomicI32 = AtomicI32::new(i32::MIN);
 }
 
@@ -40,10 +40,12 @@ impl AlertKeyedProcessFunction {
         }
     }
 
-    fn process_0(&self, key: Record, mut record: Record) -> rlink::core::Result<Option<Record>> {
+    fn process_0(&self, mut key: Record, mut record: Record) -> rlink::core::Result<Option<Record>> {
         let rule_event = alarm_rule_event::Entity::parse(record.as_buffer()).unwrap();
+        let rule_key = dynamic_key::Entity::parse(key.as_buffer()).unwrap().dynamic_key.to_string();
         let event_window_millis = rule_event.windowMinutes * 1000;
         let event_time = rule_event.eventTime;
+        let event_time_mod = event_time / 1000 * 1000;
         let agg_field_names = rule_event.aggregateFieldName;
         let agg_field_names = agg_field_names.split(",");
         let mut agg_field = "";
@@ -54,10 +56,8 @@ impl AlertKeyedProcessFunction {
         }
 
         {
-            let key_clone = key.clone();
-            let mut s = AGG_MAP.entry(key_clone).or_insert(HashMap::new());
-            let v = s.entry(event_time).or_insert(Vec::new());
-            v.push(rule_event.paymentAmount);
+            let mut s = AGG_MAP.entry(rule_key.clone()).or_insert(HashMap::new());
+            s.entry(event_time_mod).or_insert(rule_event.paymentAmount);
         }
 
         let function_type = rule_event.aggregatorFunctionType;
@@ -75,13 +75,11 @@ impl AlertKeyedProcessFunction {
         let mut acc = accumulator.unwrap();
 
         {
-            let entry = AGG_MAP.entry(key).or_insert(HashMap::new());
+            let entry = AGG_MAP.get(&rule_key).unwrap();
             let hash_map = entry.value();
-            for (t, vec) in hash_map.iter() {
-                if *t > window_start_millis && *t <= event_time {
-                    for x in vec {
-                        acc.add(*x);
-                    }
+            for (t, x) in hash_map.iter() {
+                if *t > window_start_millis && *t <= event_time_mod {
+                    acc.add(*x);
                 }
             }
         }
@@ -106,7 +104,9 @@ impl AlertKeyedProcessFunction {
 
         if alarm {
             let alarm_content = format!("Rule {:?} | {} : {} -> {}", rule_event, rule_event.groupingKeyNames, agg_result, alarm);
-            info!("the alarm content: {}", alarm_content);
+            if agg_result as i64 % 2 == 0 {
+                info!("the alarm content: {}", alarm_content);
+            }
         }
 
         let violated_rule = Rule {
@@ -215,7 +215,6 @@ impl CleanUpTask {
     pub async fn clean_up(mut self) {
         loop {
             let mut value_map = 0;
-            let mut value_map_vec = 0;
             let mut bytes = 0;
             let start = current_timestamp_millis();
             let mut remove_outer_keys = Vec::new();
@@ -230,7 +229,6 @@ impl CleanUpTask {
                         bytes += (*inner).get_size();
                         for (k, v) in inner.iter() {
                             value_map += 1;
-                            value_map_vec += v.len();
                             if *k < self.min_timestamp {
                                 self.min_timestamp = *k;
                             }
@@ -271,8 +269,8 @@ impl CleanUpTask {
             }
             // info!("end agg_map iter_mut");
             let end = current_timestamp_millis();
-            info!("the cleanup handover clean event min_timestamp: {}, max_window_millis: {},  cleaned inner count: {},cleaned out count: {}, the aggmap size: {}, value_map: {}, value_map_vec: {}, interval: {}ms, agg_map size: {}",
-                        self.min_timestamp, MAX_WINDOW_TIMESTAMP.load(Ordering::Relaxed), self.inner_remove_count,self.out_remove_count, AGG_MAP.len(), value_map, value_map_vec, end - start, bytes);
+            info!("the cleanup handover clean event min_timestamp: {}, max_window_millis: {},  cleaned inner count: {},cleaned out count: {}, the aggmap size: {}, value_map: {}, interval: {}ms, agg_map size: {}",
+                        self.min_timestamp, MAX_WINDOW_TIMESTAMP.load(Ordering::Relaxed), self.inner_remove_count,self.out_remove_count, AGG_MAP.len(), value_map, end - start, bytes);
 
             async_sleep(Duration::from_millis(5000)).await;
         }
