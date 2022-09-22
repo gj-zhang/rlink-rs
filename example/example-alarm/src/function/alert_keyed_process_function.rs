@@ -266,6 +266,7 @@ impl CleanUpTask {
                             s.remove(&x);
                         }
                         if s.len() == 0 {
+                            info!("the outer map need to be cleaned.");
                             let s = out.key();
                             remove_outer_keys.push(s.clone());
                         }
