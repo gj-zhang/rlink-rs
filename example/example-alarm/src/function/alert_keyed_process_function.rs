@@ -127,15 +127,6 @@ impl AlertKeyedProcessFunction {
             paymentAmount: rule_event.paymentAmount,
             paymentType: rule_event.paymentType.to_string(),
         };
-        // let rule_json = serde_json::to_string(&violated_rule).unwrap();
-        // let event_json = serde_json::to_string(&event).unwrap();
-        // let alert_value = alert::Entity {
-        //     ruleId: rule_event.ruleId,
-        //     violatedRule: rule_json.as_str(),
-        //     key: key.as_str(),
-        //     triggeringEvent: event_json.as_str(),
-        //     triggeringValue: agg_result,
-        // };
 
         let alert_value = AlertValue {
             ruleId: rule_event.ruleId,
