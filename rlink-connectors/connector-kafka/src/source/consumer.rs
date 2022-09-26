@@ -98,7 +98,49 @@ impl KafkaConsumerThread {
         assignment
             .add_partition_offset(
                 self.consumer_ranges.topic.as_str(),
-                self.consumer_ranges.partition,
+                0,
+                Offset::from_raw(self.consumer_ranges.begin_offset),
+            )
+            .unwrap();
+        assignment
+            .add_partition_offset(
+                self.consumer_ranges.topic.as_str(),
+                1,
+                Offset::from_raw(self.consumer_ranges.begin_offset),
+            )
+            .unwrap();
+        assignment
+            .add_partition_offset(
+                self.consumer_ranges.topic.as_str(),
+                2,
+                Offset::from_raw(self.consumer_ranges.begin_offset),
+            )
+            .unwrap();
+        assignment
+            .add_partition_offset(
+                self.consumer_ranges.topic.as_str(),
+                3,
+                Offset::from_raw(self.consumer_ranges.begin_offset),
+            )
+            .unwrap();
+        assignment
+            .add_partition_offset(
+                self.consumer_ranges.topic.as_str(),
+                4,
+                Offset::from_raw(self.consumer_ranges.begin_offset),
+            )
+            .unwrap();
+        assignment
+            .add_partition_offset(
+                self.consumer_ranges.topic.as_str(),
+                5,
+                Offset::from_raw(self.consumer_ranges.begin_offset),
+            )
+            .unwrap();
+        assignment
+            .add_partition_offset(
+                self.consumer_ranges.topic.as_str(),
+                6,
                 Offset::from_raw(self.consumer_ranges.begin_offset),
             )
             .unwrap();
